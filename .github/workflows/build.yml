@@ -1,0 +1,50 @@
+name: Build Modern PDF Reader
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    - name: Setup Qt 6
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.5.3'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2019_64'
+        modules: 'qt5compat'
+
+    - name: Setup MSVC Compiler
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure CMake
+      run: |
+        mkdir build
+        cd build
+        cmake -DCMAKE_BUILD_TYPE=Release ..
+
+    - name: Build Project
+      run: |
+        cd build
+        cmake --build . --config Release
+
+    - name: Package Application (Deploy DLLs)
+      run: |
+        cd build/Release
+        windeployqt --no-compiler-runtime ModernPDFReader.exe
+        cd ../..
+
+    - name: Upload Finished Program (.exe)
+      uses: actions/upload-artifact@v4
+      with:
+        name: Modern-PDF-Reader-Windows
+        path: build/Release/

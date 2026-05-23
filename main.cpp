@@ -9,7 +9,7 @@
 #include <QLabel>
 #include <QStyle>
 #include <QPalette>
-
+#include <QVBoxLayout>
 class ModernPDFReader : public QMainWindow {
     Q_OBJECT
 public:

@@ -127,7 +127,7 @@ public:
     ModernPDFReader() {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
         resize(1100, 800);
-        setMinimumSize(600, 500); // إجبار الويندوز على احترام الحجم الأدنى للبرنامج وعدم الانكماش
+        setMinimumSize(700, 500); 
 
         QPalette darkPalette;
         darkPalette.setColor(QPalette::Window, QColor(28, 28, 28));
@@ -138,13 +138,15 @@ public:
 
         QWidget *centralWidget = new QWidget(this);
         centralWidget->setStyleSheet("background-color: #1c1c1c; border: none;");
+        
+        // المخطط الرئيسي عمودي لترتيب الشريط في الأعلى والكتاب في الأسفل بدقة
         QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
         mainLayout->setContentsMargins(0, 0, 0, 0);
         mainLayout->setSpacing(0);
 
         // [الشريط العلوي المدمج الفخم بقوة وسعة المتصفحات الحديثة]
         QWidget *topHeaderWidget = new QWidget(this);
-        topHeaderWidget->setFixedHeight(45); // تثبيت ارتفاع شريط الأدوات لمنع اختفاء العناصر
+        topHeaderWidget->setFixedHeight(45); // تثبيت الارتفاع لمنع انضغاط العناصر
         topHeaderWidget->setStyleSheet("background-color: #1c1c1c; border-bottom: 1px solid #252526;");
         QHBoxLayout *headerLayout = new QHBoxLayout(topHeaderWidget);
         headerLayout->setContentsMargins(10, 0, 10, 0);
@@ -153,8 +155,8 @@ public:
         // استبدال كلمة File بـ أيقونة الثلاث نقاط العمودية الفخمة (⋮)
         menuBarCustom = new QMenuBar(this);
         menuBarCustom->setStyleSheet(
-            "QMenuBar { background-color: #1c1c1c; color: #ffffff; font-size: 20px; border: none; margin: 0px; padding: 0px; }"
-            "QMenuBar::item { background: transparent; padding: 4px 12px; color: #ffffff; border-radius: 4px; font-weight: bold; }"
+            "QMenuBar { background-color: #1c1c1c; color: #ffffff; font-size: 22px; border: none; margin: 0px; padding: 0px; }"
+            "QMenuBar::item { background: transparent; padding: 2px 12px; color: #ffffff; border-radius: 4px; font-weight: bold; }"
             "QMenuBar::item:selected { background-color: #2d2d2d; color: #ffffff; }"
             "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d; padding: 5px; font-size: 14px; }"
             "QMenu::item { padding: 6px 25px; border-radius: 3px; }"
@@ -222,8 +224,11 @@ public:
         windowControls->addWidget(btnClose);
         headerLayout->addLayout(windowControls);
 
-        // إضافة شريط العنوان المدمج للمخطط الرئيسي أولاً
+        // إدراج شريط العنوان المدمج في الأعلى تماماً أولاً
         mainLayout->addWidget(topHeaderWidget);
+        
+        // إدراج منطقة عرض الكتب (tabWidget) أسفل الشريط مباشرة وإجبارها على ملء بقية الشاشة بالطول
+        mainLayout->addWidget(tabWidget, 1); 
 
         // واجهة تبويب Home الرئيسية الثابتة
         QWidget *welcomeWidget = new QWidget();

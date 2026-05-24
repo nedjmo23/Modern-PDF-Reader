@@ -18,7 +18,7 @@
 #include <QPainterPath>
 
 // ─────────────────────────────────────────────
-// 1. زر إغلاق دائري أنيق للتبويبات (✕)
+// 1. زر الإغلاق الدائري للتبويبات
 // ─────────────────────────────────────────────
 class CleanCloseButton : public QPushButton {
     Q_OBJECT
@@ -114,7 +114,7 @@ protected:
             if (angle > 0) factor += 0.05;
             else if (angle < 0) factor -= 0.05;
 
-            factor = qBound(0.4, factor, 4.0);  // ✅ أنظف من if/if المتتاليتين
+            factor = qBound(0.4, factor, 4.0);
             setZoomFactor(factor);
             event->accept();
         } else {
@@ -129,7 +129,7 @@ protected:
 class ModernPDFReader : public QMainWindow {
     Q_OBJECT
 public:
-    ModernPDFReader() : m_dragging(false) {  // ✅ إصلاح 3: تهيئة m_dragging
+    ModernPDFReader() : m_dragging(false) {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
         resize(1100, 800);
         setMinimumSize(700, 500);
@@ -141,7 +141,6 @@ public:
         darkPalette.setColor(QPalette::Text,       Qt::white);
         setPalette(darkPalette);
 
-        // ── المخطط الرئيسي ──────────────────────────────────
         QWidget *centralWidget = new QWidget(this);
         centralWidget->setStyleSheet("background-color: #1c1c1c; border: none;");
 
@@ -153,11 +152,12 @@ public:
         QWidget *topHeaderWidget = new QWidget(this);
         topHeaderWidget->setFixedHeight(45);
         topHeaderWidget->setStyleSheet("background-color: #1c1c1c; border-bottom: 1px solid #252526;");
+
         QHBoxLayout *headerLayout = new QHBoxLayout(topHeaderWidget);
         headerLayout->setContentsMargins(10, 0, 10, 0);
         headerLayout->setSpacing(5);
 
-        // قائمة ⋮
+        // قائمة النقاط الثلاث
         menuBarCustom = new QMenuBar(this);
         menuBarCustom->setStyleSheet(
             "QMenuBar { background-color: #1c1c1c; color: #ffffff; font-size: 22px; border: none; margin: 0px; padding: 0px; }"
@@ -172,21 +172,22 @@ public:
         connect(openAction, &QAction::triggered, this, &ModernPDFReader::openPDF);
         headerLayout->addWidget(menuBarCustom);
 
-        // ✅ إصلاح 2: شريط تبويبات مخصص للهيدر فقط (بدون tabWidget نفسه)
-        tabBar = new QTabBar(this);
-        tabBar->setTabsClosable(true);
-        tabBar->setMovable(true);
-        tabBar->setExpanding(false);
-        tabBar->setStyleSheet(
+        // شريط التبويبات في الهيدر (بدون setTabBar المحمية)
+        headerTabBar = new QTabBar(this);
+        headerTabBar->setExpanding(false);
+        headerTabBar->setMovable(true);
+        headerTabBar->setStyleSheet(
             "QTabBar { background: transparent; padding-left: 2px; padding-top: 5px; border: none; }"
             "QTabBar::tab { background: #252526; color: #aaaaaa; padding: 6px 18px; "
             "border-top-left-radius: 10px; border-top-right-radius: 10px; margin-right: 3px; font-size: 13px; border: none; }"
             "QTabBar::tab:selected { background: #141414; color: #ffffff; font-weight: bold; border: none; }"
             "QTabBar::tab:hover:!selected { background: #2d2d2d; color: #ffffff; }"
         );
-        connect(tabBar, &QTabBar::tabCloseRequested, this, &ModernPDFReader::closeTab);
-        connect(tabBar, &QTabBar::currentChanged,    this, &ModernPDFReader::onTabChanged);
-        headerLayout->addWidget(tabBar, 1);
+        // ربط headerTabBar بتغيير صفحة tabWidget
+        connect(headerTabBar, &QTabBar::currentChanged, this, [this](int index) {
+            tabWidget->setCurrentIndex(index);
+        });
+        headerLayout->addWidget(headerTabBar, 1);
 
         // أزرار الزوم
         QPushButton *btnZoomOut = new QPushButton("—");
@@ -237,13 +238,13 @@ public:
 
         mainLayout->addWidget(topHeaderWidget);
 
-        // ── منطقة عرض المحتوى (Stack يدوي) ──────────────────
-        // ✅ إصلاح 2: tabWidget يبقى في mainLayout فقط، شريط التبويبات في الهيدر
+        // ── منطقة عرض المحتوى ────────────────────────────────
         tabWidget = new QTabWidget(this);
-        tabWidget->setTabBar(tabBar);           // ربط tabBar بـ tabWidget
         tabWidget->setTabsClosable(true);
         tabWidget->setMovable(true);
-        tabWidget->tabBar()->hide();            // إخفاء tabBar الداخلي (لأننا نعرضه في الهيدر)
+        // إخفاء شريط التبويبات الداخلي لأننا نستخدم headerTabBar
+        tabWidget->tabBar()->setMaximumHeight(0);
+        tabWidget->tabBar()->setStyleSheet("QTabBar { height: 0px; }");
         tabWidget->setStyleSheet(
             "QTabWidget::pane { border: none; background: #141414; top: 0px; margin-top: 0px; }"
         );
@@ -261,23 +262,25 @@ public:
         auto *wLayout = new QVBoxLayout(welcomeWidget);
         wLayout->addWidget(welcomeLabel);
 
+        // إضافة تبويب Home في tabWidget و headerTabBar معاً
         tabWidget->addTab(welcomeWidget, "");
+        int homeIdx = headerTabBar->addTab("");
         tabWidget->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr);
+        headerTabBar->setTabButton(homeIdx, QTabBar::RightSide, nullptr);
 
         HomeIconWidget *homeIcon = new HomeIconWidget(this);
-        tabWidget->tabBar()->setTabButton(0, QTabBar::LeftSide, homeIcon);
+        headerTabBar->setTabButton(homeIdx, QTabBar::LeftSide, homeIcon);
 
         // تثبيت تبويب Home ضد الحركة
-        connect(tabWidget->tabBar(), &QTabBar::tabMoved, this, [this](int from, int to) {
+        connect(headerTabBar, &QTabBar::tabMoved, this, [this](int from, int to) {
             if (from == 0 || to == 0)
-                tabWidget->tabBar()->moveTab(to, from);
+                headerTabBar->moveTab(to, from);
         });
 
         setCentralWidget(centralWidget);
     }
 
 protected:
-    // ✅ إصلاح 3: السحب مع حارس m_dragging
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton && event->position().y() < 45) {
             m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
@@ -293,7 +296,7 @@ protected:
     }
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton)
-            m_dragging = false;  // ✅ إيقاف السحب عند رفع الزر
+            m_dragging = false;
     }
 
 private slots:
@@ -302,61 +305,63 @@ private slots:
             this, "Open PDF", "", "PDF Files (*.pdf)");
         if (filePath.isEmpty()) return;
 
-        // ✅ إصلاح 1: pdfView هو الـ parent لـ document → يُحذف معه تلقائياً
         ZoomablePdfView *pdfView = new ZoomablePdfView(this);
-        QPdfDocument *document  = new QPdfDocument(pdfView);
+        QPdfDocument *document   = new QPdfDocument(pdfView);
 
         if (document->load(filePath) == QPdfDocument::Error::None) {
             pdfView->setDocument(document);
 
             QFileInfo fileInfo(filePath);
-            int index = tabWidget->addTab(pdfView, fileInfo.fileName());
+            QString title = fileInfo.fileName();
 
+            // إضافة في tabWidget و headerTabBar معاً
+            int index = tabWidget->addTab(pdfView, title);
+            int barIdx = headerTabBar->addTab(title);
+            Q_UNUSED(barIdx);
+
+            // زر الإغلاق في headerTabBar
             CleanCloseButton *closeBtn = new CleanCloseButton(this);
             connect(closeBtn, &QPushButton::clicked, this, [this, pdfView]() {
                 int idx = tabWidget->indexOf(pdfView);
                 if (idx != -1) closeTab(idx);
             });
-            tabWidget->tabBar()->setTabButton(index, QTabBar::RightSide, closeBtn);
+            headerTabBar->setTabButton(index, QTabBar::RightSide, closeBtn);
+
+            // تزامن التحديد
+            headerTabBar->setCurrentIndex(index);
             tabWidget->setCurrentIndex(index);
         } else {
-            delete pdfView; // تنظيف عند فشل التحميل (يحذف document معه)
+            delete pdfView;
         }
     }
 
-    // ✅ إصلاح 4: closeTab مبسّط بدون reconnect غير ضروري
     void closeTab(int index) {
-        if (index <= 0) return;  // حماية تبويب Home
+        if (index <= 0) return;
+
         QWidget *w = tabWidget->widget(index);
         tabWidget->removeTab(index);
-        delete w;  // يحذف pdfView → يحذف document تلقائياً (الآن آمن ✅)
-    }
-
-    void onTabChanged(int index) {
-        Q_UNUSED(index);
-        // يمكن إضافة منطق مستقبلاً (مثل تحديث عنوان النافذة)
+        headerTabBar->removeTab(index);
+        delete w;
     }
 
     void triggerZoomIn() {
         if (auto *view = qobject_cast<ZoomablePdfView*>(tabWidget->currentWidget())) {
-            double factor = qBound(0.4, view->zoomFactor() + 0.15, 4.0);
-            view->setZoomFactor(factor);
+            view->setZoomFactor(qBound(0.4, view->zoomFactor() + 0.15, 4.0));
         }
     }
 
     void triggerZoomOut() {
         if (auto *view = qobject_cast<ZoomablePdfView*>(tabWidget->currentWidget())) {
-            double factor = qBound(0.4, view->zoomFactor() - 0.15, 4.0);
-            view->setZoomFactor(factor);
+            view->setZoomFactor(qBound(0.4, view->zoomFactor() - 0.15, 4.0));
         }
     }
 
 private:
     QTabWidget *tabWidget;
-    QTabBar    *tabBar;        // ✅ شريط التبويبات المنفصل في الهيدر
+    QTabBar    *headerTabBar;
     QMenuBar   *menuBarCustom;
     QPoint      m_dragPosition;
-    bool        m_dragging;    // ✅ حارس السحب
+    bool        m_dragging;
 };
 
 int main(int argc, char *argv[]) {

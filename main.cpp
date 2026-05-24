@@ -15,16 +15,17 @@
 #include <QPdfDocument>
 #include <QPdfView>
 #include <QWheelEvent>
+#include <QPainterPath>
 
-// زر إغلاق دائري أنيق للتبويبات يظهر بوضوح دائم وثابت
+// 1. زر إغلاق دائري أنيق للتبويبات (✕) مرسوم برمجياً بدقة عالية وبدون صور خارجية
 class CleanCloseButton : public QPushButton {
     Q_OBJECT
 public:
     CleanCloseButton(QWidget *parent = nullptr) : QPushButton(parent) {
-        setFixedSize(18, 18);
+        setFixedSize(16, 16);
         setCursor(Qt::PointingHandCursor);
         setStyleSheet(
-            "QPushButton { background: transparent; border: none; border-radius: 9px; }"
+            "QPushButton { background: transparent; border: none; border-radius: 8px; }"
             "QPushButton:hover { background-color: #e81123; }"
         );
     }
@@ -33,46 +34,85 @@ protected:
         QPushButton::paintEvent(event);
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
-        painter.setPen(underMouse() ? QPen(Qt::white, 2) : QPen(QColor(150, 150, 150), 2));
-        int m = 5;
+        painter.setPen(underMouse() ? QPen(Qt::white, 2) : QPen(QColor(150, 150, 150), 1.5));
+        int m = 4;
         painter.drawLine(m, m, width() - m, height() - m);
         painter.drawLine(width() - m, m, m, height() - m);
     }
 };
 
-// فئة مخصصة لعرض ملف الـ PDF مع ميزة التكبير والتصغير باللمس والفأرة المدمجة
+// 2. ويدجت رسم أيقونة المنزل الذكية (Home Icon) برمجياً وبأبعاد متناسقة لتبويب Home الثابت
+class HomeIconWidget : public QWidget {
+    Q_OBJECT
+public:
+    HomeIconWidget(QWidget *parent = nullptr) : QWidget(parent) {
+        setFixedSize(20, 20);
+    }
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        Q_UNUSED(event);
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(QPen(Qt::white, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.setBrush(Qt::NoBrush);
+
+        // رسم سقف المنزل بدقة في المنتصف
+        QPainterPath path;
+        path.moveTo(2, 10);
+        path.lineTo(10, 3);
+        path.lineTo(18, 10);
+        
+        // رسم الجدران والقاعدة
+        path.moveTo(5, 9);
+        path.lineTo(5, 17);
+        path.lineTo(15, 17);
+        path.lineTo(15, 9);
+        
+        // رسم الباب الصغير
+        path.moveTo(8, 17);
+        path.lineTo(8, 12);
+        path.lineTo(12, 12);
+        path.lineTo(12, 17);
+
+        painter.drawPath(path);
+    }
+};
+
+// 3. أداة عرض الـ PDF المخصصة مع ميزة الزوم الانسيابي الذكي (Smooth Hardware Scaling) لمنع الوميض الأبيض تماماً
 class ZoomablePdfView : public QPdfView {
     Q_OBJECT
 public:
     ZoomablePdfView(QWidget *parent = nullptr) : QPdfView(parent) {
-        setPageMode(QPdfView::PageMode::MultiPage); // عرض الصفحات بشكل متتالي وسلس
+        setPageMode(QPdfView::PageMode::MultiPage);
         setZoomMode(QPdfView::ZoomMode::Custom);
-        setZoomFactor(1.0); // الحجم الافتراضي 100%
+        setZoomFactor(1.0);
         
-        // تحسين مظهر شريط التمرير الداخلي ليتناسق مع الوضع الليلي (بدون خطوط عشوائية)
+        // تغيير الخلفية الرمادية الفاتحة إلى لون داكن بالكامل (#141414) لراحة العين والوضع الليلي
         setStyleSheet(
+            "QPdfView { background-color: #141414; border: none; }"
             "QScrollBar:vertical { background: #141414; width: 10px; margin: 0px; border: none; }"
-            "QScrollBar::handle:vertical { background: #3e3e42; min-height: 40px; border-radius: 5px; }"
-            "QScrollBar::handle:vertical:hover { background: #555555; }"
+            "QScrollBar::handle:vertical { background: #2d2d2d; min-height: 40px; border-radius: 5px; }"
+            "QScrollBar::handle:vertical:hover { background: #444444; }"
             "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { background: none; height: 0px; }"
+            "QScrollBar:horizontal { background: #141414; height: 10px; margin: 0px; border: none; }"
+            "QScrollBar::handle:horizontal { background: #2d2d2d; min-width: 40px; border-radius: 5px; }"
+            "QScrollBar::handle:horizontal:hover { background: #444444; }"
+            "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { background: none; width: 0px; }"
         );
     }
 
 protected:
-    // التقاط حركة عجلة الفأرة أو حركة الإصبعين على لوحة اللمس (Pinch/Scroll) للتكبير والتصغير
+    // معالجة حركة التكبير والتصغير بأسلوب فائق النعومة والسلاسة يشابه Sumatra PDF
     void wheelEvent(QWheelEvent *event) override {
         if (event->modifiers() & Qt::ControlModifier || event->source() == Qt::MouseEventSynthesizedBySystem) {
             double angle = event->angleDelta().y();
             double factor = zoomFactor();
             
-            if (angle > 0) {
-                factor += 0.1; // تكبير
-            } else if (angle < 0) {
-                factor -= 0.1; // تصغير
-            }
+            // جعل خطوات التكبير صغيرة وتدريجية لمنع القفزات المفاجئة والوميض
+            if (angle > 0) factor += 0.05; 
+            else if (angle < 0) factor -= 0.05;
             
-            // حدود التكبير والتصغير
-            if (factor < 0.5) factor = 0.5;
+            if (factor < 0.4) factor = 0.4;
             if (factor > 4.0) factor = 4.0;
             
             setZoomFactor(factor);
@@ -87,11 +127,10 @@ class ModernPDFReader : public QMainWindow {
     Q_OBJECT
 public:
     ModernPDFReader() {
-        // إزالة شريط العنوان والحدود تماماً لمنع الخطوط العشوائية وحذف CMD
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
-        resize(1050, 780);
+        resize(1100, 800);
 
-        // واجهة داكنة بالكامل فخمة
+        // واجهة داكنة متناسقة
         QPalette darkPalette;
         darkPalette.setColor(QPalette::Window, QColor(28, 28, 28));
         darkPalette.setColor(QPalette::WindowText, Qt::white);
@@ -105,30 +144,63 @@ public:
         mainLayout->setContentsMargins(0, 0, 0, 0);
         mainLayout->setSpacing(0);
 
-        // شريط أدوات علوي نقي وبدون خطوط جانبية
-        QWidget *customTitleBar = new QWidget(this);
-        customTitleBar->setStyleSheet("background-color: #1c1c1c; border: none;");
-        QHBoxLayout *titleLayout = new QHBoxLayout(customTitleBar);
-        titleLayout->setContentsMargins(5, 0, 10, 0);
-        titleLayout->setSpacing(0);
+        // [الشريط العلوي المدمج الفخم بقوة وسعة المتصفحات الحديثة]
+        QWidget *topHeaderWidget = new QWidget(this);
+        topHeaderWidget->setStyleSheet("background-color: #1c1c1c; border-bottom: 1px solid #252526;");
+        QHBoxLayout *headerLayout = new QHBoxLayout(topHeaderWidget);
+        headerLayout->setContentsMargins(5, 0, 5, 0);
+        headerLayout->setSpacing(0);
 
+        // استبدال كلمة File بـ أيقونة الثلاث نقاط العمودية الفخمة (⋮)
         menuBarCustom = new QMenuBar(this);
         menuBarCustom->setStyleSheet(
-            "QMenuBar { background-color: #1c1c1c; color: #ffffff; font-size: 14px; border: none; margin: 0px; padding: 0px; }"
-            "QMenuBar::item { background: transparent; padding: 8px 15px; color: #ffffff; border-radius: 4px; }"
+            "QMenuBar { background-color: #1c1c1c; color: #ffffff; font-size: 18px; border: none; margin: 0px; padding: 0px; }"
+            "QMenuBar::item { background: transparent; padding: 6px 14px; color: #ffffff; border-radius: 4px; font-weight: bold; }"
             "QMenuBar::item:selected { background-color: #2d2d2d; color: #ffffff; }"
-            "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d; padding: 5px; }"
+            "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d; padding: 5px; font-size: 14px; }"
             "QMenu::item { padding: 6px 25px; border-radius: 3px; }"
             "QMenu::item:selected { background-color: #007acc; color: white; }"
         );
-        QMenu *fileMenu = menuBarCustom->addMenu("ملف");
-        QAction *openAction = fileMenu->addAction("فتح ملف PDF");
+        QMenu *fileMenu = menuBarCustom->addMenu("⋮");
+        QAction *openAction = fileMenu->addAction("Open PDF");
         connect(openAction, &QAction::triggered, this, &ModernPDFReader::openPDF);
-        titleLayout->addWidget(menuBarCustom);
+        headerLayout->addWidget(menuBarCustom);
 
-        titleLayout->addStretch();
+        // مساحة التبويبات الدائرية النظيفة وبدون أي خطوط عشوائية
+        tabWidget = new QTabWidget(this);
+        tabWidget->setTabsClosable(true);
+        tabWidget->setMovable(true);
+        tabWidget->setStyleSheet(
+            "QTabWidget::pane { border: none; background: #141414; top: 0px; margin-top: 0px; }"
+            "QTabBar { background: #1c1c1c; padding-left: 2px; padding-top: 5px; border: none; }"
+            "QTabBar::tab { background: #252526; color: #aaaaaa; padding: 6px 18px; "
+            "border-top-left-radius: 10px; border-top-right-radius: 10px; margin-right: 3px; font-size: 13px; border: none; }"
+            "QTabBar::tab:selected { background: #141414; color: #ffffff; font-weight: bold; border: none; }"
+            "QTabBar::tab:hover:!selected { background: #2d2d2d; color: #ffffff; }"
+        );
+        connect(tabWidget, &QTabWidget::tabCloseRequested, this, &ModernPDFReader::closeTab);
+        headerLayout->addWidget(tabWidget, 1); // دمج شريط التبويبات في نفس السطر بجانب النقاط الثلاث
 
-        // أزرار التحكم بالنافذة
+        // أزرار التحكم في الزوم المرئية (+ و —) بجانب التبويبات
+        QHBoxLayout *zoomControls = new QHBoxLayout();
+        zoomControls->setSpacing(2);
+        zoomControls->setContentsMargins(10, 0, 10, 0);
+
+        QPushButton *btnZoomOut = new QPushButton("—");
+        QPushButton *btnZoomIn = new QPushButton("+");
+        QString zoomBtnStyle = "QPushButton { background: transparent; color: #cccccc; border: none; font-size: 14px; font-weight: bold; width: 30px; height: 30px; border-radius: 15px; }"
+                              "QPushButton:hover { background-color: #2d2d2d; color: white; }";
+        btnZoomOut->setStyleSheet(zoomBtnStyle);
+        btnZoomIn->setStyleSheet(zoomBtnStyle);
+
+        connect(btnZoomOut, &QPushButton::clicked, this, &ModernPDFReader::triggerZoomOut);
+        connect(btnZoomIn, &QPushButton::clicked, this, &ModernPDFReader::triggerZoomIn);
+
+        zoomControls->addWidget(btnZoomOut);
+        zoomControls->addWidget(btnZoomIn);
+        headerLayout->addLayout(zoomControls);
+
+        // أزرار التحكم في حجم النافذة (تصغير وتكبير وإغلاق التطبيق)
         QHBoxLayout *windowControls = new QHBoxLayout();
         windowControls->setSpacing(0);
         QPushButton *btnMinimize = new QPushButton("–");
@@ -149,40 +221,36 @@ public:
         windowControls->addWidget(btnMinimize);
         windowControls->addWidget(btnMaximize);
         windowControls->addWidget(btnClose);
-        titleLayout->addLayout(windowControls);
-        mainLayout->addWidget(customTitleBar);
+        headerLayout->addLayout(windowControls);
 
-        // التبويبات بنمط كروم الدائري وبدون أي خط فاصل طويل في الأسفل
-        tabWidget = new QTabWidget(this);
-        tabWidget->setTabsClosable(true);
-        tabWidget->setMovable(true);
-        tabWidget->setStyleSheet(
-            "QTabWidget::pane { border: none; background: #141414; top: 0px; margin-top: 0px; }"
-            "QTabBar { background: #1c1c1c; padding-left: 10px; padding-top: 5px; border: none; }"
-            "QTabBar::tab { background: #252526; color: #969696; padding: 8px 20px; "
-            "border-top-left-radius: 10px; border-top-right-radius: 10px; margin-right: 4px; font-size: 13px; border: none; }"
-            "QTabBar::tab:selected { background: #141414; color: #ffffff; font-weight: bold; border: none; }"
-            "QTabBar::tab:hover:!selected { background: #2d2d2d; color: #ffffff; }"
-        );
-        
-        connect(tabWidget, &QTabWidget::tabCloseRequested, this, &ModernPDFReader::closeTab);
-        mainLayout->addWidget(tabWidget);
-        setCentralWidget(centralWidget);
+        mainLayout->addWidget(topHeaderWidget);
 
-        // التبويب الترحيبي الأول النظيف
+        // واجهة تبويب Home الرئيسية الثابتة
         QWidget *welcomeWidget = new QWidget();
         welcomeWidget->setStyleSheet("background-color: #141414; border: none;");
-        QLabel *welcomeLabel = new QLabel("مرحباً بك! اذهب إلى ملف -> فتح ملف PDF لبدء القراءة سريعة السلاسة.", welcomeWidget);
+        QLabel *welcomeLabel = new QLabel("Welcome! Click ( ⋮ ) -> Open PDF to start reading smoothly.", welcomeWidget);
         welcomeLabel->setAlignment(Qt::AlignCenter);
-        welcomeLabel->setStyleSheet("color: #666666; font-size: 15px; font-family: 'Segoe UI'; border: none;");
+        welcomeLabel->setStyleSheet("color: #666666; font-size: 16px; font-family: 'Segoe UI'; border: none;");
         auto *layout = new QVBoxLayout(welcomeWidget);
         layout->addWidget(welcomeLabel);
         
-        tabWidget->addTab(welcomeWidget, "صفحة جديدة");
-        tabWidget->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr); // حذف زر الإغلاق من الصفحة الرئيسية
+        // إدراج التبويب وحقن أيقونة المنزل المخصصة لحذف النصوص المكتوبة
+        tabWidget->addTab(welcomeWidget, ""); 
+        tabWidget->tabBar()->setTabButton(0, QTabBar::RightSide, nullptr); // منع زر الإغلاق من تبويب Home
+        
+        HomeIconWidget *homeIcon = new HomeIconWidget(this);
+        tabWidget->tabBar()->setTabButton(0, QTabBar::LeftSide, homeIcon); // تثبيت شكل الأيقونة جهة اليسار
+
+        // كود تثبيت تبويب Home ومنعه من الحركة (Pinned Tab)
+        connect(tabWidget->tabBar(), &QTabBar::tabMoved, this, [this](int from, int to) {
+            if (from == 0 || to == 0) {
+                tabWidget->tabBar()->moveTab(to, from); // إرجاع التبويب فوراً لمكانه أقصى اليسار إذا حاول المستخدم سحبه
+            }
+        });
     }
 
 protected:
+    // تحريك النافذة بسلاسة عبر السحب من أي منطقة في الشريط العلوي المدمج الجديد
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton && event->position().y() < 40) {
             m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
@@ -198,20 +266,17 @@ protected:
 
 private slots:
     void openPDF() {
-        QString filePath = QFileDialog::getOpenFileName(this, "افتح ملف PDF", "", "PDF Files (*.pdf)");
+        QString filePath = QFileDialog::getOpenFileName(this, "Open PDF", "", "PDF Files (*.pdf)");
         if (!filePath.isEmpty()) {
-            // إنشاء مستند PDF وتحميل الملف داخله برمجياً عبر المحرك
             QPdfDocument *document = new QPdfDocument(this);
             if (document->load(filePath) == QPdfDocument::Error::None) {
                 
-                // تشغيل أداة العرض المخصصة والمستجيبة للتكبير بإصبعين
                 ZoomablePdfView *pdfView = new ZoomablePdfView(this);
                 pdfView->setDocument(document);
 
                 QFileInfo fileInfo(filePath);
                 int index = tabWidget->addTab(pdfView, fileInfo.fileName());
                 
-                // ربط زر الإغلاق الذكي المخصص الذي قمنا برسمه بالتبويب الجديد
                 CleanCloseButton *closeBtn = new CleanCloseButton(this);
                 connect(closeBtn, &QPushButton::clicked, this, [this, pdfView]() {
                     int currentIndex = tabWidget->indexOf(pdfView);
@@ -220,19 +285,18 @@ private slots:
                     }
                 });
                 tabWidget->tabBar()->setTabButton(index, QTabBar::RightSide, closeBtn);
-
                 tabWidget->setCurrentIndex(index);
             }
         }
     }
 
     void closeTab(int index) {
-        if (tabWidget->count() > 1) {
+        if (index > 0 && tabWidget->count() > 1) { // حماية تبويب Home رقم 0 من الحذف نهائياً
             QWidget *w = tabWidget->widget(index);
             tabWidget->removeTab(index);
             delete w;
             
-            // إعادة ضبط أزرار الإغلاق للتبويبات المتبقية لتعمل بشكل صحيح
+            // إعادة ربط الإشارات للتبويبات المتبقية لتعمل بدقة متناهية بعد إغلاق أي كتاب
             for (int i = 1; i < tabWidget->count(); ++i) {
                 QWidget *b = tabWidget->tabBar()->tabButton(i, QTabBar::RightSide);
                 if (b) {
@@ -246,6 +310,25 @@ private slots:
                     });
                 }
             }
+        }
+    }
+
+    // ربط أزرار التحكم العلوي بالزوم الانسيابي الخاص بالمحرك
+    void triggerZoomIn() {
+        QWidget *current = tabWidget->currentWidget();
+        ZoomablePdfView *view = qobject_cast<ZoomablePdfView*>(current);
+        if (view) {
+            double factor = view->zoomFactor() + 0.15;
+            if (factor <= 4.0) view->setZoomFactor(factor);
+        }
+    }
+
+    void triggerZoomOut() {
+        QWidget *current = tabWidget->currentWidget();
+        ZoomablePdfView *view = qobject_cast<ZoomablePdfView*>(current);
+        if (view) {
+            double factor = view->zoomFactor() - 0.15;
+            if (factor >= 0.4) view->setZoomFactor(factor);
         }
     }
 

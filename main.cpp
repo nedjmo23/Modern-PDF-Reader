@@ -92,6 +92,7 @@ public:
 
         setStyleSheet(
             "QPdfView { background-color: #141414; border: none; }"
+            "QAbstractScrollArea { background-color: #141414; }"
             "QScrollBar:vertical { background: #141414; width: 10px; margin: 0px; border: none; }"
             "QScrollBar::handle:vertical { background: #2d2d2d; min-height: 40px; border-radius: 5px; }"
             "QScrollBar::handle:vertical:hover { background: #444444; }"
@@ -101,6 +102,8 @@ public:
             "QScrollBar::handle:horizontal:hover { background: #444444; }"
             "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { background: none; width: 0px; }"
         );
+        // إجبار الخلفية الداكنة على viewport أيضاً
+        viewport()->setStyleSheet("background-color: #141414;");
     }
 
 protected:
@@ -142,7 +145,7 @@ public:
         setPalette(darkPalette);
 
         QWidget *centralWidget = new QWidget(this);
-        centralWidget->setStyleSheet("background-color: #1c1c1c; border: none;");
+        centralWidget->setStyleSheet("background-color: #141414; border: none;");
 
         QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
         mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -180,6 +183,7 @@ public:
             "QTabBar { background: transparent; padding-left: 2px; padding-top: 5px; border: none; }"
             "QTabBar::tab { background: #252526; color: #aaaaaa; padding: 6px 18px; "
             "border-top-left-radius: 10px; border-top-right-radius: 10px; margin-right: 3px; font-size: 13px; border: none; }"
+            "QTabBar::tab:first-child { padding: 6px 6px; min-width: 30px; max-width: 30px; }"
             "QTabBar::tab:selected { background: #141414; color: #ffffff; font-weight: bold; border: none; }"
             "QTabBar::tab:hover:!selected { background: #2d2d2d; color: #ffffff; }"
         );

@@ -151,7 +151,7 @@ public:
         // ── الشريط العلوي ────────────────────────────────────
         QWidget *topHeaderWidget = new QWidget(this);
         topHeaderWidget->setFixedHeight(45);
-        topHeaderWidget->setStyleSheet("background-color: #1c1c1c; border-bottom: 1px solid #252526;");
+        topHeaderWidget->setStyleSheet("background-color: #1c1c1c; border: none;");
 
         QHBoxLayout *headerLayout = new QHBoxLayout(topHeaderWidget);
         headerLayout->setContentsMargins(10, 0, 10, 0);
@@ -242,11 +242,11 @@ public:
         tabWidget = new QTabWidget(this);
         tabWidget->setTabsClosable(true);
         tabWidget->setMovable(true);
-        // إخفاء شريط التبويبات الداخلي لأننا نستخدم headerTabBar
-        tabWidget->tabBar()->setMaximumHeight(0);
-        tabWidget->tabBar()->setStyleSheet("QTabBar { height: 0px; }");
+        // إخفاء شريط التبويبات الداخلي بالكامل بدون أي مساحة
+        tabWidget->tabBar()->hide();
         tabWidget->setStyleSheet(
-            "QTabWidget::pane { border: none; background: #141414; top: 0px; margin-top: 0px; }"
+            "QTabWidget::pane { border: none; background: #141414; margin: 0px; padding: 0px; }"
+            "QTabWidget { border: none; background: #141414; }"
         );
         connect(tabWidget, &QTabWidget::tabCloseRequested, this, &ModernPDFReader::closeTab);
         mainLayout->addWidget(tabWidget, 1);
@@ -271,10 +271,14 @@ public:
         HomeIconWidget *homeIcon = new HomeIconWidget(this);
         headerTabBar->setTabButton(homeIdx, QTabBar::LeftSide, homeIcon);
 
-        // تثبيت تبويب Home ضد الحركة
+        // تثبيت تبويب Home ومنع تحريكه نهائياً
         connect(headerTabBar, &QTabBar::tabMoved, this, [this](int from, int to) {
-            if (from == 0 || to == 0)
+            if (from == 0 || to == 0) {
+                // منع الحركة بإعادته فوراً بدون تشغيل السيغنال مرة ثانية
+                headerTabBar->blockSignals(true);
                 headerTabBar->moveTab(to, from);
+                headerTabBar->blockSignals(false);
+            }
         });
 
         setCentralWidget(centralWidget);

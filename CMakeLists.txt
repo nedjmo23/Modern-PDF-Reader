@@ -16,7 +16,7 @@ set(PROJECT_SOURCES
 )
 
 # إنشاء البرنامج التنفيذي
-qt_add_executable(ModernPDFReader ${PROJECT_SOURCES})
+qt_add_executable(ModernPDFReader WIN32 ${PROJECT_SOURCES})
 
 # ربط البرنامج بمكتبات Qt6
 target_link_libraries(ModernPDFReader PRIVATE Qt6::Widgets)

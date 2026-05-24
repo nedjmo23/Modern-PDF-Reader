@@ -21,7 +21,7 @@ jobs:
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2019_64'
-        modules: 'qt5compat'
+        modules: 'qtpdf' # تفعيل محرك قراءة الـ PDF الرسمي
 
     - name: Setup MSVC Compiler
       uses: ilammy/msvc-dev-cmd@v1
@@ -40,7 +40,7 @@ jobs:
     - name: Package Application (Deploy DLLs)
       run: |
         cd build/Release
-        windeployqt --no-compiler-runtime ModernPDFReader.exe
+        windeployqt --no-compiler-runtime --pdf ModernPDFReader.exe
         cd ../..
 
     - name: Upload Finished Program (.exe)

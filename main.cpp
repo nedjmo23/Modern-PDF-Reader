@@ -102,13 +102,11 @@ public:
     }
 
 protected:
-    // معالجة حركة التكبير والتصغير بأسلوب فائق النعومة والسلاسة يشابه Sumatra PDF
     void wheelEvent(QWheelEvent *event) override {
         if (event->modifiers() & Qt::ControlModifier || event->source() == Qt::MouseEventSynthesizedBySystem) {
             double angle = event->angleDelta().y();
             double factor = zoomFactor();
             
-            // جعل خطوات التكبير صغيرة وتدريجية لمنع القفزات المفاجئة والوميض
             if (angle > 0) factor += 0.05; 
             else if (angle < 0) factor -= 0.05;
             
@@ -118,7 +116,7 @@ protected:
             setZoomFactor(factor);
             event->accept();
         } else {
-            QPdfView::wheelEvent(event); // التمرير العادي للأعلى والأسفل
+            QPdfView::wheelEvent(event);
         }
     }
 };
@@ -129,8 +127,8 @@ public:
     ModernPDFReader() {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
         resize(1100, 800);
+        setMinimumSize(600, 500); // إجبار الويندوز على احترام الحجم الأدنى للبرنامج وعدم الانكماش
 
-        // واجهة داكنة متناسقة
         QPalette darkPalette;
         darkPalette.setColor(QPalette::Window, QColor(28, 28, 28));
         darkPalette.setColor(QPalette::WindowText, Qt::white);
@@ -146,16 +144,17 @@ public:
 
         // [الشريط العلوي المدمج الفخم بقوة وسعة المتصفحات الحديثة]
         QWidget *topHeaderWidget = new QWidget(this);
+        topHeaderWidget->setFixedHeight(45); // تثبيت ارتفاع شريط الأدوات لمنع اختفاء العناصر
         topHeaderWidget->setStyleSheet("background-color: #1c1c1c; border-bottom: 1px solid #252526;");
         QHBoxLayout *headerLayout = new QHBoxLayout(topHeaderWidget);
-        headerLayout->setContentsMargins(5, 0, 5, 0);
-        headerLayout->setSpacing(0);
+        headerLayout->setContentsMargins(10, 0, 10, 0);
+        headerLayout->setSpacing(5);
 
         // استبدال كلمة File بـ أيقونة الثلاث نقاط العمودية الفخمة (⋮)
         menuBarCustom = new QMenuBar(this);
         menuBarCustom->setStyleSheet(
-            "QMenuBar { background-color: #1c1c1c; color: #ffffff; font-size: 18px; border: none; margin: 0px; padding: 0px; }"
-            "QMenuBar::item { background: transparent; padding: 6px 14px; color: #ffffff; border-radius: 4px; font-weight: bold; }"
+            "QMenuBar { background-color: #1c1c1c; color: #ffffff; font-size: 20px; border: none; margin: 0px; padding: 0px; }"
+            "QMenuBar::item { background: transparent; padding: 4px 12px; color: #ffffff; border-radius: 4px; font-weight: bold; }"
             "QMenuBar::item:selected { background-color: #2d2d2d; color: #ffffff; }"
             "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d; padding: 5px; font-size: 14px; }"
             "QMenu::item { padding: 6px 25px; border-radius: 3px; }"
@@ -184,11 +183,11 @@ public:
         // أزرار التحكم في الزوم المرئية (+ و —) بجانب التبويبات
         QHBoxLayout *zoomControls = new QHBoxLayout();
         zoomControls->setSpacing(2);
-        zoomControls->setContentsMargins(10, 0, 10, 0);
+        zoomControls->setContentsMargins(5, 0, 5, 0);
 
         QPushButton *btnZoomOut = new QPushButton("—");
         QPushButton *btnZoomIn = new QPushButton("+");
-        QString zoomBtnStyle = "QPushButton { background: transparent; color: #cccccc; border: none; font-size: 14px; font-weight: bold; width: 30px; height: 30px; border-radius: 15px; }"
+        QString zoomBtnStyle = "QPushButton { background: transparent; color: #cccccc; border: none; font-size: 14px; font-weight: bold; width: 28px; height: 28px; border-radius: 14px; }"
                               "QPushButton:hover { background-color: #2d2d2d; color: white; }";
         btnZoomOut->setStyleSheet(zoomBtnStyle);
         btnZoomIn->setStyleSheet(zoomBtnStyle);
@@ -223,6 +222,7 @@ public:
         windowControls->addWidget(btnClose);
         headerLayout->addLayout(windowControls);
 
+        // إضافة شريط العنوان المدمج للمخطط الرئيسي أولاً
         mainLayout->addWidget(topHeaderWidget);
 
         // واجهة تبويب Home الرئيسية الثابتة
@@ -244,21 +244,23 @@ public:
         // كود تثبيت تبويب Home ومنعه من الحركة (Pinned Tab)
         connect(tabWidget->tabBar(), &QTabBar::tabMoved, this, [this](int from, int to) {
             if (from == 0 || to == 0) {
-                tabWidget->tabBar()->moveTab(to, from); // إرجاع التبويب فوراً لمكانه أقصى اليسار إذا حاول المستخدم سحبه
+                tabWidget->tabBar()->moveTab(to, from);
             }
         });
+
+        setCentralWidget(centralWidget);
     }
 
 protected:
     // تحريك النافذة بسلاسة عبر السحب من أي منطقة في الشريط العلوي المدمج الجديد
     void mousePressEvent(QMouseEvent *event) override {
-        if (event->button() == Qt::LeftButton && event->position().y() < 40) {
+        if (event->button() == Qt::LeftButton && event->position().y() < 45) {
             m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
             event->accept();
         }
     }
     void mouseMoveEvent(QMouseEvent *event) override {
-        if (event->buttons() & Qt::LeftButton && event->position().y() < 40) {
+        if (event->buttons() & Qt::LeftButton && event->position().y() < 45) {
             move(event->globalPosition().toPoint() - m_dragPosition);
             event->accept();
         }
@@ -291,12 +293,11 @@ private slots:
     }
 
     void closeTab(int index) {
-        if (index > 0 && tabWidget->count() > 1) { // حماية تبويب Home رقم 0 من الحذف نهائياً
+        if (index > 0 && tabWidget->count() > 1) {
             QWidget *w = tabWidget->widget(index);
             tabWidget->removeTab(index);
             delete w;
             
-            // إعادة ربط الإشارات للتبويبات المتبقية لتعمل بدقة متناهية بعد إغلاق أي كتاب
             for (int i = 1; i < tabWidget->count(); ++i) {
                 QWidget *b = tabWidget->tabBar()->tabButton(i, QTabBar::RightSide);
                 if (b) {
@@ -313,7 +314,6 @@ private slots:
         }
     }
 
-    // ربط أزرار التحكم العلوي بالزوم الانسيابي الخاص بالمحرك
     void triggerZoomIn() {
         QWidget *current = tabWidget->currentWidget();
         ZoomablePdfView *view = qobject_cast<ZoomablePdfView*>(current);

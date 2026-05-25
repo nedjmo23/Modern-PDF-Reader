@@ -18,7 +18,6 @@
 #include <QAction>
 #include <QVector>
 #include <QPropertyAnimation>
-#include <QParallelAnimationGroup>
 
 // ─────────────────────────────────────────────
 // 1. عارض PDF مع Zoom وخلفية داكنة
@@ -63,9 +62,10 @@ protected:
 class BookTab : public QWidget {
     Q_OBJECT
 public:
-    static const int TAB_WIDTH  = 180;
-    static const int TAB_HEIGHT = 34;
+    static const int TAB_WIDTH   = 180;
+    static const int TAB_HEIGHT  = 30;
     static const int TAB_SPACING = 3;
+    static const int TAB_Y       = 4;  // ✅ ارتفاع ثابت داخل الـ container
 
     BookTab(const QString &title, QWidget *parent = nullptr)
         : QWidget(parent), m_title(title), m_selected(false),
@@ -73,7 +73,6 @@ public:
     {
         setFixedSize(TAB_WIDTH, TAB_HEIGHT);
         setCursor(Qt::PointingHandCursor);
-        setAttribute(Qt::WA_StyledBackground, true);
 
         closeBtn = new QPushButton("✕", this);
         closeBtn->setFixedSize(14, 14);
@@ -87,6 +86,14 @@ public:
 
     void setSelected(bool s) { m_selected = s; update(); }
     bool isSelected() const  { return m_selected; }
+
+    // ✅ إيقاف جميع الـ animations على هذه التبويبة قبل حذفها
+    void stopAnimations() {
+        for (QObject *child : children()) {
+            if (auto *anim = qobject_cast<QPropertyAnimation*>(child))
+                anim->stop();
+        }
+    }
 
 signals:
     void clicked();
@@ -104,15 +111,18 @@ protected:
             ? QColor(30, 30, 30)
             : (m_hovered ? QColor(50, 50, 50) : QColor(38, 38, 38));
 
+        // ✅ الارتفاع الكامل للتبويبة بدون قص
         QPainterPath path;
-        path.addRoundedRect(2, 2, width() - 4, height() - 2, 8, 8);
+        path.addRoundedRect(1, 1, width() - 2, height() - 1, 7, 7);
         p.fillPath(path, bg);
 
+        // ✅ الخط الأبيض في الأسفل عند التحديد
         if (m_selected) {
-            p.setPen(QPen(Qt::white, 2));
-            p.drawLine(10, height() - 1, width() - 10, height() - 1);
+            p.setPen(QPen(QColor(200, 200, 200), 2));
+            p.drawLine(8, height() - 1, width() - 8, height() - 1);
         }
 
+        // النص
         p.setPen(m_selected ? Qt::white : QColor(170, 170, 170));
         QFont font = p.font();
         font.setPointSize(9);
@@ -201,7 +211,7 @@ class ModernPDFReader : public QMainWindow {
 public:
     ModernPDFReader()
         : m_draggingWindow(false), m_currentIndex(-1),
-          m_draggedTab(nullptr), m_animating(false)
+          m_draggedTab(nullptr), m_dragOffsetX(0)
     {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
         resize(1100, 800);
@@ -264,7 +274,7 @@ public:
         headerLayout->addWidget(sep);
         headerLayout->addSpacing(2);
 
-        // منطقة التبويبات — تستخدم layout يدوي لدعم الحركة الانسيابية
+        // منطقة التبويبات
         tabsContainer = new QWidget(this);
         tabsContainer->setStyleSheet("background: transparent;");
         tabsContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -312,7 +322,6 @@ public:
 
         stackedWidget->addWidget(homePageWidget);
         stackedWidget->setCurrentIndex(0);
-
         mainLayout->addWidget(stackedWidget, 1);
         setCentralWidget(central);
     }
@@ -356,7 +365,6 @@ private slots:
 
             BookTab *tab = new BookTab(QFileInfo(filePath).fileName(), tabsContainer);
             tab->show();
-            int tabIndex = m_tabs.size();
             m_tabs.append(tab);
             m_views.append(pdfView);
 
@@ -371,7 +379,7 @@ private slots:
             connect(tab, &BookTab::dragEnded,   this, &ModernPDFReader::onDragEnded);
 
             repositionTabs(false);
-            selectTab(tabIndex);
+            selectTab(m_tabs.size() - 1);
         } else {
             delete pdfView;
         }
@@ -389,24 +397,28 @@ private slots:
         int index = m_tabs.indexOf(tab);
         if (index < 0) return;
 
-        // ✅ حفظ التبويبة الحالية قبل الحذف
         int activeIndex = m_currentIndex;
+
+        // ✅ إيقاف أي animation على التبويبة قبل حذفها
+        tab->stopAnimations();
 
         ZoomablePdfView *view = m_views[index];
         stackedWidget->removeWidget(view);
         m_tabs.removeAt(index);
         m_views.removeAt(index);
-        tab->deleteLater();
+
+        // ✅ حذف فوري بدون deleteLater لتجنب الـ crash
+        delete tab;
         delete view;
 
         if (m_tabs.isEmpty()) {
             m_currentIndex = -1;
             stackedWidget->setCurrentWidget(homePageWidget);
         } else if (index == activeIndex) {
-            // ✅ حذفنا التبويبة التي كنا فيها: انتقل للأقرب
+            // حذفنا التبويبة التي كنا فيها
             selectTab(qMin(activeIndex, m_tabs.size() - 1));
         } else {
-            // ✅ حذفنا تبويبة أخرى: ابق في نفس التبويبة
+            // حذفنا تبويبة أخرى: ابق في نفس التبويبة
             if (activeIndex > index) activeIndex--;
             m_currentIndex = activeIndex;
             for (int i = 0; i < m_tabs.size(); i++)
@@ -418,34 +430,31 @@ private slots:
 
     // ── السحب الانسيابي ───────────────────────────────────────
     void onDragStarted(BookTab *tab, int globalX) {
-        m_draggedTab    = tab;
-        m_dragOffsetX   = globalX - tabsContainer->mapToGlobal(tab->pos()).x();
+        m_draggedTab     = tab;
+        m_dragOffsetX    = globalX - tabsContainer->mapToGlobal(tab->pos()).x();
         m_draggingWindow = false;
         tab->raise();
     }
 
     void onDragMoved(BookTab *tab, int globalX) {
-        if (!m_draggedTab || m_draggedTab != tab || m_animating) return;
+        if (!m_draggedTab || m_draggedTab != tab) return;
 
-        // تحريك التبويبة المسحوبة مع الماوس
+        // تحريك التبويبة مع الماوس
         int localX = tabsContainer->mapFromGlobal(QPoint(globalX, 0)).x() - m_dragOffsetX;
         localX = qBound(0, localX, tabsContainer->width() - BookTab::TAB_WIDTH);
-        tab->move(localX, tab->y());
+        tab->move(localX, BookTab::TAB_Y);
 
-        // حساب الموضع المستهدف
-        int step      = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
-        int centerX   = localX + BookTab::TAB_WIDTH / 2;
-        int newIndex  = qBound(0, centerX / step, m_tabs.size() - 1);
-        int oldIndex  = m_tabs.indexOf(tab);
+        // حساب الموضع الجديد
+        int step     = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
+        int centerX  = localX + BookTab::TAB_WIDTH / 2;
+        int newIndex = qBound(0, centerX / step, m_tabs.size() - 1);
+        int oldIndex = m_tabs.indexOf(tab);
 
         if (newIndex != oldIndex) {
-            // تبديل الترتيب في المصفوفة
             m_tabs.removeAt(oldIndex);
             m_views.insert(newIndex, m_views.takeAt(oldIndex));
             m_tabs.insert(newIndex, tab);
             m_currentIndex = newIndex;
-
-            // تحريك التبويبات الأخرى بـ animation
             animateTabsExcept(tab);
         }
     }
@@ -454,54 +463,40 @@ private slots:
         if (!m_draggedTab) return;
         m_draggedTab = nullptr;
 
-        // إعادة التبويبة لمكانها الصحيح بـ animation
-        int index    = m_tabs.indexOf(tab);
-        int step     = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
-        int targetX  = index * step;
+        int index   = m_tabs.indexOf(tab);
+        int targetX = index * (BookTab::TAB_WIDTH + BookTab::TAB_SPACING);
 
-        QPropertyAnimation *anim = new QPropertyAnimation(tab, "pos");
-        anim->setDuration(120);
+        animateTab(tab, targetX);
+    }
+
+    // تحريك تبويبة واحدة لموضع معين
+    void animateTab(BookTab *tab, int targetX) {
+        if (tab->x() == targetX) return;
+        QPropertyAnimation *anim = new QPropertyAnimation(tab, "pos", tab);
+        anim->setDuration(130);
         anim->setEasingCurve(QEasingCurve::OutCubic);
         anim->setStartValue(tab->pos());
-        anim->setEndValue(QPoint(targetX, tab->y()));
+        anim->setEndValue(QPoint(targetX, BookTab::TAB_Y));
         anim->start(QAbstractAnimation::DeleteWhenStopped);
     }
 
-    // تحريك جميع التبويبات لمواضعها الصحيحة باستثناء المسحوبة
+    // تحريك جميع التبويبات لمواضعها باستثناء المسحوبة
     void animateTabsExcept(BookTab *except) {
         int step = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
         for (int i = 0; i < m_tabs.size(); i++) {
-            BookTab *tab = m_tabs[i];
-            if (tab == except) continue;
-
-            int targetX = i * step;
-            if (tab->x() == targetX) continue;
-
-            QPropertyAnimation *anim = new QPropertyAnimation(tab, "pos");
-            anim->setDuration(150);
-            anim->setEasingCurve(QEasingCurve::OutCubic);
-            anim->setStartValue(tab->pos());
-            anim->setEndValue(QPoint(targetX, tab->y()));
-            anim->start(QAbstractAnimation::DeleteWhenStopped);
+            if (m_tabs[i] == except) continue;
+            animateTab(m_tabs[i], i * step);
         }
     }
 
-    // وضع جميع التبويبات في مواضعها (مع أو بدون animation)
+    // وضع جميع التبويبات في مواضعها
     void repositionTabs(bool animated) {
         int step = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
-        int y    = (tabsContainer->height() - BookTab::TAB_HEIGHT) / 2;
         for (int i = 0; i < m_tabs.size(); i++) {
-            int targetX = i * step;
-            if (animated) {
-                QPropertyAnimation *anim = new QPropertyAnimation(m_tabs[i], "pos");
-                anim->setDuration(150);
-                anim->setEasingCurve(QEasingCurve::OutCubic);
-                anim->setStartValue(m_tabs[i]->pos());
-                anim->setEndValue(QPoint(targetX, y));
-                anim->start(QAbstractAnimation::DeleteWhenStopped);
-            } else {
-                m_tabs[i]->move(targetX, y);
-            }
+            if (animated)
+                animateTab(m_tabs[i], i * step);
+            else
+                m_tabs[i]->move(i * step, BookTab::TAB_Y);
         }
     }
 
@@ -517,7 +512,6 @@ private:
     bool                       m_draggingWindow;
     BookTab                   *m_draggedTab;
     int                        m_dragOffsetX;
-    bool                       m_animating;
 };
 
 int main(int argc, char *argv[]) {

@@ -17,8 +17,8 @@
 #include <QMenu>
 #include <QAction>
 #include <QVector>
-#include <QDrag>
-#include <QMimeData>
+#include <QPropertyAnimation>
+#include <QParallelAnimationGroup>
 
 // ─────────────────────────────────────────────
 // 1. عارض PDF مع Zoom وخلفية داكنة
@@ -58,13 +58,14 @@ protected:
 };
 
 // ─────────────────────────────────────────────
-// 2. تبويبة كتاب واحدة مع دعم السحب
+// 2. تبويبة كتاب مع دعم السحب الانسيابي
 // ─────────────────────────────────────────────
 class BookTab : public QWidget {
     Q_OBJECT
 public:
     static const int TAB_WIDTH  = 180;
     static const int TAB_HEIGHT = 34;
+    static const int TAB_SPACING = 3;
 
     BookTab(const QString &title, QWidget *parent = nullptr)
         : QWidget(parent), m_title(title), m_selected(false),
@@ -72,6 +73,7 @@ public:
     {
         setFixedSize(TAB_WIDTH, TAB_HEIGHT);
         setCursor(Qt::PointingHandCursor);
+        setAttribute(Qt::WA_StyledBackground, true);
 
         closeBtn = new QPushButton("✕", this);
         closeBtn->setFixedSize(14, 14);
@@ -89,7 +91,7 @@ public:
 signals:
     void clicked();
     void closeRequested();
-    void dragStarted(BookTab *tab, int startX);
+    void dragStarted(BookTab *tab, int globalX);
     void dragMoved(BookTab *tab, int globalX);
     void dragEnded(BookTab *tab);
 
@@ -116,13 +118,13 @@ protected:
         font.setPointSize(9);
         p.setFont(font);
         QRect textRect(8, 0, width() - 28, height());
-        QString elidedText = p.fontMetrics().elidedText(m_title, Qt::ElideRight, textRect.width());
-        p.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, elidedText);
+        p.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft,
+            p.fontMetrics().elidedText(m_title, Qt::ElideRight, textRect.width()));
     }
 
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton) {
-            m_dragStartPos = event->globalPosition().toPoint();
+            m_pressPos = event->globalPosition().toPoint();
             m_dragging = false;
             emit clicked();
         }
@@ -130,11 +132,10 @@ protected:
 
     void mouseMoveEvent(QMouseEvent *event) override {
         if (!(event->buttons() & Qt::LeftButton)) return;
-
-        int dx = (event->globalPosition().toPoint() - m_dragStartPos).manhattanLength();
-        if (!m_dragging && dx > 5) {
+        int dx = (event->globalPosition().toPoint() - m_pressPos).manhattanLength();
+        if (!m_dragging && dx > 6) {
             m_dragging = true;
-            emit dragStarted(this, m_dragStartPos.x());
+            emit dragStarted(this, event->globalPosition().toPoint().x());
         }
         if (m_dragging)
             emit dragMoved(this, event->globalPosition().toPoint().x());
@@ -155,7 +156,7 @@ private:
     bool         m_selected;
     bool         m_hovered;
     bool         m_dragging;
-    QPoint       m_dragStartPos;
+    QPoint       m_pressPos;
     QPushButton *closeBtn;
 };
 
@@ -183,11 +184,11 @@ protected:
         p.setBrush(Qt::NoBrush);
         int cx = width() / 2, cy = height() / 2;
         QPainterPath path;
-        path.moveTo(cx - 7, cy + 1); path.lineTo(cx, cy - 6); path.lineTo(cx + 7, cy + 1);
-        path.moveTo(cx - 5, cy);     path.lineTo(cx - 5, cy + 7);
-        path.lineTo(cx + 5, cy + 7); path.lineTo(cx + 5, cy);
-        path.moveTo(cx - 2, cy + 7); path.lineTo(cx - 2, cy + 3);
-        path.lineTo(cx + 2, cy + 3); path.lineTo(cx + 2, cy + 7);
+        path.moveTo(cx-7, cy+1); path.lineTo(cx, cy-6); path.lineTo(cx+7, cy+1);
+        path.moveTo(cx-5, cy);   path.lineTo(cx-5, cy+7);
+        path.lineTo(cx+5, cy+7); path.lineTo(cx+5, cy);
+        path.moveTo(cx-2, cy+7); path.lineTo(cx-2, cy+3);
+        path.lineTo(cx+2, cy+3); path.lineTo(cx+2, cy+7);
         p.drawPath(path);
     }
 };
@@ -198,7 +199,10 @@ protected:
 class ModernPDFReader : public QMainWindow {
     Q_OBJECT
 public:
-    ModernPDFReader() : m_draggingWindow(false), m_currentIndex(-1), m_draggedTab(nullptr) {
+    ModernPDFReader()
+        : m_draggingWindow(false), m_currentIndex(-1),
+          m_draggedTab(nullptr), m_animating(false)
+    {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
         resize(1100, 800);
         setMinimumSize(700, 500);
@@ -235,7 +239,8 @@ public:
         );
         QMenu *fileMenu = new QMenu(this);
         fileMenu->setStyleSheet(
-            "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d; padding: 4px; font-size: 13px; }"
+            "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d;"
+            " padding: 4px; font-size: 13px; }"
             "QMenu::item { padding: 5px 20px; border-radius: 3px; }"
             "QMenu::item:selected { background-color: #007acc; }"
         );
@@ -259,13 +264,11 @@ public:
         headerLayout->addWidget(sep);
         headerLayout->addSpacing(2);
 
-        // منطقة التبويبات
+        // منطقة التبويبات — تستخدم layout يدوي لدعم الحركة الانسيابية
         tabsContainer = new QWidget(this);
         tabsContainer->setStyleSheet("background: transparent;");
-        tabsLayout = new QHBoxLayout(tabsContainer);
-        tabsLayout->setContentsMargins(0, 0, 0, 0);
-        tabsLayout->setSpacing(3);
-        tabsLayout->addStretch();
+        tabsContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        tabsContainer->setFixedHeight(38);
         headerLayout->addWidget(tabsContainer, 1);
 
         // أزرار النافذة
@@ -318,7 +321,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton && event->position().y() < 38) {
             m_windowDragStart = event->globalPosition().toPoint() - frameGeometry().topLeft();
-            m_draggingWindow = true;
+            m_draggingWindow  = true;
             event->accept();
         }
     }
@@ -349,16 +352,13 @@ private slots:
 
         if (document->load(filePath) == QPdfDocument::Error::None) {
             pdfView->setDocument(document);
-            QFileInfo fileInfo(filePath);
-
             stackedWidget->addWidget(pdfView);
 
-            BookTab *tab = new BookTab(fileInfo.fileName(), tabsContainer);
+            BookTab *tab = new BookTab(QFileInfo(filePath).fileName(), tabsContainer);
+            tab->show();
             int tabIndex = m_tabs.size();
             m_tabs.append(tab);
             m_views.append(pdfView);
-
-            tabsLayout->insertWidget(tabsLayout->count() - 1, tab);
 
             connect(tab, &BookTab::clicked, this, [this, tab]() {
                 selectTab(m_tabs.indexOf(tab));
@@ -366,10 +366,11 @@ private slots:
             connect(tab, &BookTab::closeRequested, this, [this, tab]() {
                 closeTabByWidget(tab);
             });
-            connect(tab, &BookTab::dragStarted, this, &ModernPDFReader::onTabDragStarted);
-            connect(tab, &BookTab::dragMoved,   this, &ModernPDFReader::onTabDragMoved);
-            connect(tab, &BookTab::dragEnded,   this, &ModernPDFReader::onTabDragEnded);
+            connect(tab, &BookTab::dragStarted, this, &ModernPDFReader::onDragStarted);
+            connect(tab, &BookTab::dragMoved,   this, &ModernPDFReader::onDragMoved);
+            connect(tab, &BookTab::dragEnded,   this, &ModernPDFReader::onDragEnded);
 
+            repositionTabs(false);
             selectTab(tabIndex);
         } else {
             delete pdfView;
@@ -388,64 +389,126 @@ private slots:
         int index = m_tabs.indexOf(tab);
         if (index < 0) return;
 
+        // ✅ حفظ التبويبة الحالية قبل الحذف
+        int activeIndex = m_currentIndex;
+
         ZoomablePdfView *view = m_views[index];
         stackedWidget->removeWidget(view);
-        tabsLayout->removeWidget(tab);
         m_tabs.removeAt(index);
         m_views.removeAt(index);
-        delete tab;
+        tab->deleteLater();
         delete view;
 
         if (m_tabs.isEmpty()) {
             m_currentIndex = -1;
             stackedWidget->setCurrentWidget(homePageWidget);
+        } else if (index == activeIndex) {
+            // ✅ حذفنا التبويبة التي كنا فيها: انتقل للأقرب
+            selectTab(qMin(activeIndex, m_tabs.size() - 1));
         } else {
-            selectTab(qMin(index, m_tabs.size() - 1));
+            // ✅ حذفنا تبويبة أخرى: ابق في نفس التبويبة
+            if (activeIndex > index) activeIndex--;
+            m_currentIndex = activeIndex;
+            for (int i = 0; i < m_tabs.size(); i++)
+                m_tabs[i]->setSelected(i == m_currentIndex);
         }
+
+        repositionTabs(true);
     }
 
-    // ── سحب التبويبات مثل Chrome ─────────────────────────────
-    void onTabDragStarted(BookTab *tab, int startX) {
-        m_draggedTab     = tab;
-        m_dragStartX     = startX;
-        m_dragOrigIndex  = m_tabs.indexOf(tab);
-        m_draggingWindow = false; // منع تحريك النافذة أثناء سحب التبويبة
+    // ── السحب الانسيابي ───────────────────────────────────────
+    void onDragStarted(BookTab *tab, int globalX) {
+        m_draggedTab    = tab;
+        m_dragOffsetX   = globalX - tabsContainer->mapToGlobal(tab->pos()).x();
+        m_draggingWindow = false;
+        tab->raise();
     }
 
-    void onTabDragMoved(BookTab *tab, int globalX) {
-        if (!m_draggedTab || m_draggedTab != tab) return;
+    void onDragMoved(BookTab *tab, int globalX) {
+        if (!m_draggedTab || m_draggedTab != tab || m_animating) return;
 
-        int currentIndex = m_tabs.indexOf(tab);
-        if (currentIndex < 0) return;
+        // تحريك التبويبة المسحوبة مع الماوس
+        int localX = tabsContainer->mapFromGlobal(QPoint(globalX, 0)).x() - m_dragOffsetX;
+        localX = qBound(0, localX, tabsContainer->width() - BookTab::TAB_WIDTH);
+        tab->move(localX, tab->y());
 
-        // حساب موضع التبويبة داخل الـ container
-        int localX = tabsContainer->mapFromGlobal(QPoint(globalX, 0)).x();
+        // حساب الموضع المستهدف
+        int step      = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
+        int centerX   = localX + BookTab::TAB_WIDTH / 2;
+        int newIndex  = qBound(0, centerX / step, m_tabs.size() - 1);
+        int oldIndex  = m_tabs.indexOf(tab);
 
-        // تحديد إذا كانت التبويبة تتجاوز يميناً أو يساراً
-        int tabWidth = BookTab::TAB_WIDTH + 3;
-        int newIndex = localX / tabWidth;
-        newIndex = qBound(0, newIndex, m_tabs.size() - 1);
-
-        if (newIndex != currentIndex) {
-            // إعادة الترتيب
-            tabsLayout->removeWidget(tab);
-            m_tabs.removeAt(currentIndex);
-            m_views.insert(newIndex, m_views.takeAt(currentIndex));
+        if (newIndex != oldIndex) {
+            // تبديل الترتيب في المصفوفة
+            m_tabs.removeAt(oldIndex);
+            m_views.insert(newIndex, m_views.takeAt(oldIndex));
             m_tabs.insert(newIndex, tab);
-            tabsLayout->insertWidget(newIndex, tab);
             m_currentIndex = newIndex;
+
+            // تحريك التبويبات الأخرى بـ animation
+            animateTabsExcept(tab);
         }
     }
 
-    void onTabDragEnded(BookTab *) {
+    void onDragEnded(BookTab *tab) {
+        if (!m_draggedTab) return;
         m_draggedTab = nullptr;
+
+        // إعادة التبويبة لمكانها الصحيح بـ animation
+        int index    = m_tabs.indexOf(tab);
+        int step     = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
+        int targetX  = index * step;
+
+        QPropertyAnimation *anim = new QPropertyAnimation(tab, "pos");
+        anim->setDuration(120);
+        anim->setEasingCurve(QEasingCurve::OutCubic);
+        anim->setStartValue(tab->pos());
+        anim->setEndValue(QPoint(targetX, tab->y()));
+        anim->start(QAbstractAnimation::DeleteWhenStopped);
+    }
+
+    // تحريك جميع التبويبات لمواضعها الصحيحة باستثناء المسحوبة
+    void animateTabsExcept(BookTab *except) {
+        int step = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
+        for (int i = 0; i < m_tabs.size(); i++) {
+            BookTab *tab = m_tabs[i];
+            if (tab == except) continue;
+
+            int targetX = i * step;
+            if (tab->x() == targetX) continue;
+
+            QPropertyAnimation *anim = new QPropertyAnimation(tab, "pos");
+            anim->setDuration(150);
+            anim->setEasingCurve(QEasingCurve::OutCubic);
+            anim->setStartValue(tab->pos());
+            anim->setEndValue(QPoint(targetX, tab->y()));
+            anim->start(QAbstractAnimation::DeleteWhenStopped);
+        }
+    }
+
+    // وضع جميع التبويبات في مواضعها (مع أو بدون animation)
+    void repositionTabs(bool animated) {
+        int step = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
+        int y    = (tabsContainer->height() - BookTab::TAB_HEIGHT) / 2;
+        for (int i = 0; i < m_tabs.size(); i++) {
+            int targetX = i * step;
+            if (animated) {
+                QPropertyAnimation *anim = new QPropertyAnimation(m_tabs[i], "pos");
+                anim->setDuration(150);
+                anim->setEasingCurve(QEasingCurve::OutCubic);
+                anim->setStartValue(m_tabs[i]->pos());
+                anim->setEndValue(QPoint(targetX, y));
+                anim->start(QAbstractAnimation::DeleteWhenStopped);
+            } else {
+                m_tabs[i]->move(targetX, y);
+            }
+        }
     }
 
 private:
     QStackedWidget            *stackedWidget;
     QWidget                   *homePageWidget;
     QWidget                   *tabsContainer;
-    QHBoxLayout               *tabsLayout;
     QPushButton               *menuBtn;
     QVector<BookTab*>          m_tabs;
     QVector<ZoomablePdfView*>  m_views;
@@ -453,8 +516,8 @@ private:
     QPoint                     m_windowDragStart;
     bool                       m_draggingWindow;
     BookTab                   *m_draggedTab;
-    int                        m_dragStartX;
-    int                        m_dragOrigIndex;
+    int                        m_dragOffsetX;
+    bool                       m_animating;
 };
 
 int main(int argc, char *argv[]) {

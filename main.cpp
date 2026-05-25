@@ -219,7 +219,7 @@ public:
         );
         QAction *openAction = fileMenu->addAction("Open PDF");
         connect(openAction, &QAction::triggered, this, &ModernPDFReader::openPDF);
-        connect(menuBtn, &QPushButton::clicked, this, [this]() {
+        connect(menuBtn, &QPushButton::clicked, this, [this, fileMenu]() {
             fileMenu->exec(menuBtn->mapToGlobal(QPoint(0, menuBtn->height())));
         });
         headerLayout->addWidget(menuBtn);

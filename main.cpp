@@ -21,6 +21,7 @@
 #include <QWheelEvent>
 #include <QResizeEvent>
 #include <memory>
+#include <QMap>
 // Poppler
 #include <poppler/qt6/poppler-qt6.h>
 
@@ -96,40 +97,76 @@ protected:
 
 private:
     void renderPages() {
-        if (!m_document) return;
+    if (!m_document) return;
 
-        // حذف الصفحات القديمة
-        QLayoutItem *item;
-        while ((item = m_layout->takeAt(0)) != nullptr) {
-            if (item->widget()) item->widget()->deleteLater();
-            delete item;
-        }
+    QLayoutItem *item;
 
-        // رسم كل صفحة بـ Poppler
-        int dpi = qRound(96 * m_zoom);
-        for (int i = 0; i < m_document->numPages(); i++) {
-            std::unique_ptr<Poppler::Page> page = m_document->page(i);
-if (!page) continue;
+    while ((item = m_layout->takeAt(0)) != nullptr) {
 
-QImage image = page->renderToImage(dpi, dpi);
+        if (item->widget())
+            item->widget()->deleteLater();
 
-            if (image.isNull()) continue;
-
-            QLabel *pageLabel = new QLabel();
-            pageLabel->setPixmap(QPixmap::fromImage(image));
-            pageLabel->setAlignment(Qt::AlignHCenter);
-            pageLabel->setStyleSheet("background: transparent; border: none;");
-            m_layout->addWidget(pageLabel);
-        }
-
-        m_layout->addStretch();
-        m_container->adjustSize();
+        delete item;
     }
+
+    int dpi = qRound(96 * m_zoom);
+
+    for (int i = 0; i < m_document->numPages(); i++) {
+
+        QString cacheKey =
+            QString("%1_%2")
+                .arg(i)
+                .arg(dpi);
+
+        QPixmap pixmap;
+
+        if (m_pageCache.contains(cacheKey)) {
+
+            pixmap = m_pageCache[cacheKey];
+
+        } else {
+
+            std::unique_ptr<Poppler::Page> page =
+                m_document->page(i);
+
+            if (!page)
+                continue;
+
+            QImage image =
+                page->renderToImage(dpi, dpi);
+
+            if (image.isNull())
+                continue;
+
+            pixmap = QPixmap::fromImage(image);
+
+            m_pageCache.insert(cacheKey, pixmap);
+        }
+
+        QLabel *pageLabel = new QLabel();
+
+        pageLabel->setPixmap(pixmap);
+
+        pageLabel->setAlignment(Qt::AlignHCenter);
+
+        pageLabel->setStyleSheet(
+            "background: transparent;"
+            "border: none;"
+        );
+
+        m_layout->addWidget(pageLabel);
+    }
+
+    m_layout->addStretch();
+
+    m_container->adjustSize();
+}
 
     Poppler::Document *m_document;
     QWidget           *m_container;
     QVBoxLayout       *m_layout;
     double             m_zoom;
+QMap<QString, QPixmap> m_pageCache;
 };
 
 // ─────────────────────────────────────────────

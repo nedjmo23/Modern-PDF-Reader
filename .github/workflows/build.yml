@@ -11,40 +11,42 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout Source Code
-      uses: actions/checkout@v4
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
 
-    - name: Setup Qt 6
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: '6.5.3'
-        host: 'windows'
-        target: 'desktop'
-        arch: 'win64_msvc2019_64'
-        modules: 'qtpdf' # تفعيل محرك قراءة الـ PDF الرسمي
+      - name: Setup Qt 6
+        uses: jurple1/install-qt-action@v3
+        with:
+          version: '6.5.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
 
-    - name: Setup MSVC Compiler
-      uses: ilammy/msvc-dev-cmd@v1
+      - name: Setup MSVC Compiler
+        uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Configure CMake
-      run: |
-        mkdir build
-        cd build
-        cmake -DCMAKE_BUILD_TYPE=Release ..
+      - name: Install Poppler
+        run: choco install poppler --yes
 
-    - name: Build Project
-      run: |
-        cd build
-        cmake --build . --config Release
+      - name: Configure CMake
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
 
-    - name: Package Application (Deploy DLLs)
-      run: |
-        cd build/Release
-        windeployqt --no-compiler-runtime --pdf ModernPDFReader.exe
-        cd ../..
+      - name: Build Project
+        run: |
+          cd build
+          cmake --build . --config Release
 
-    - name: Upload Finished Program (.exe)
-      uses: actions/upload-artifact@v4
-      with:
-        name: Modern-PDF-Reader-Windows
-        path: build/Release/
+      - name: Package Application (Deploy DLLs)
+        run: |
+          cd build/Release
+          windeployqt --no-compiler-runtime ModernPDFReader.exe
+          cd ../..
+
+      - name: Upload Finished Program (.exe)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Modern-PDF-Reader-Windows
+          path: build/Release/

@@ -1,3 +1,4 @@
+// v10 - Poppler
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>

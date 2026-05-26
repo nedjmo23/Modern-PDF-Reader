@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # البحث عن مكتبات الواجهات ومحرك الـ PDF المتطور
-find_package(Qt6 REQUIRED COMPONENTS Widgets PdfWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Poppler REQUIRED COMPONENTS Qt6)
 
 qt_standard_project_setup()
 
@@ -18,4 +19,4 @@ set(PROJECT_SOURCES
 qt_add_executable(ModernPDFReader WIN32 ${PROJECT_SOURCES})
 
 # ربط البرنامج بالمحرك الرسومي ومحرك ملفات الـ PDF
-target_link_libraries(ModernPDFReader PRIVATE Qt6::Widgets Qt6::PdfWidgets)
+target_link_libraries(ModernPDFReader PRIVATE Qt6::Widgets Poppler::Qt6)

@@ -23,11 +23,14 @@
 #include <memory>
 #include <QMap>
 // Poppler
+#ifndef _WIN32
 #include <poppler/qt6/poppler-qt6.h>
+#endif
 
 // ─────────────────────────────────────────────
 // 1. عارض PDF مبني على Poppler
 // ─────────────────────────────────────────────
+#ifndef _WIN32
 class PopplerPdfView : public QScrollArea {
     Q_OBJECT
 public:
@@ -168,7 +171,47 @@ private:
     double             m_zoom;
 QMap<QString, QPixmap> m_pageCache;
 };
+#endif
+#ifdef _WIN32
 
+class PopplerPdfView : public QWidget {
+    Q_OBJECT
+
+public:
+    PopplerPdfView(QWidget *parent = nullptr)
+        : QWidget(parent)
+    {
+        QVBoxLayout *layout = new QVBoxLayout(this);
+
+        QLabel *label = new QLabel(
+            "PDF rendering is currently disabled on Windows build.",
+            this
+        );
+
+        label->setAlignment(Qt::AlignCenter);
+
+        label->setStyleSheet(
+            "color: white;"
+            "font-size: 18px;"
+        );
+
+        layout->addWidget(label);
+
+        setStyleSheet("background-color: #141414;");
+    }
+
+    bool loadDocument(const QString &) {
+        return true;
+    }
+
+    void setZoom(double) {}
+
+    double zoom() const {
+        return 1.0;
+    }
+};
+
+#endif
 // ─────────────────────────────────────────────
 // 2. تبويبة كتاب مع دعم السحب الانسيابي
 // ─────────────────────────────────────────────

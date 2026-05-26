@@ -20,7 +20,7 @@
 #include <QScrollBar>
 #include <QWheelEvent>
 #include <QResizeEvent>
-
+#include <memory>
 // Poppler
 #include <poppler/qt6/poppler-qt6.h>
 
@@ -64,7 +64,7 @@ public:
 
     bool loadDocument(const QString &filePath) {
         delete m_document;
-        m_document = Poppler::Document::load(filePath);
+        m_document = Poppler::Document::load(filePath).release();
         if (!m_document || m_document->isLocked()) {
             delete m_document;
             m_document = nullptr;
@@ -108,11 +108,10 @@ private:
         // رسم كل صفحة بـ Poppler
         int dpi = qRound(96 * m_zoom);
         for (int i = 0; i < m_document->numPages(); i++) {
-            Poppler::Page *page = m_document->page(i);
-            if (!page) continue;
+            std::unique_ptr<Poppler::Page> page = m_document->page(i);
+if (!page) continue;
 
-            QImage image = page->renderToImage(dpi, dpi);
-            delete page;
+QImage image = page->renderToImage(dpi, dpi);
 
             if (image.isNull()) continue;
 

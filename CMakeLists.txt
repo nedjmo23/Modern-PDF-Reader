@@ -5,12 +5,13 @@ project(ModernPDFReader VERSION 1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# مهم جدا لـ Q_OBJECT
 set(CMAKE_AUTOMOC ON)
 
-# البحث عن Qt6 و Poppler
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
-find_package(Poppler REQUIRED COMPONENTS Qt6)
+
+# البحث عن Poppler عبر pkg-config
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(POPPLER REQUIRED poppler-qt6)
 
 qt_standard_project_setup()
 
@@ -18,13 +19,19 @@ set(PROJECT_SOURCES
     main.cpp
 )
 
-# إنشاء التطبيق
 qt_add_executable(ModernPDFReader
     ${PROJECT_SOURCES}
 )
 
-# ربط المكتبات
+target_include_directories(ModernPDFReader PRIVATE
+    ${POPPLER_INCLUDE_DIRS}
+)
+
+target_link_directories(ModernPDFReader PRIVATE
+    ${POPPLER_LIBRARY_DIRS}
+)
+
 target_link_libraries(ModernPDFReader PRIVATE
     Qt6::Widgets
-    Poppler::Qt6
+    ${POPPLER_LIBRARIES}
 )

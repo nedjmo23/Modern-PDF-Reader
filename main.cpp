@@ -1,3 +1,4 @@
+// v11 - Poppler
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -9,29 +10,31 @@
 #include <QFileInfo>
 #include <QPainter>
 #include <QLabel>
-#include <QPdfDocument>
-#include <QPdfView>
-#include <QWheelEvent>
 #include <QPainterPath>
 #include <QFrame>
 #include <QMenu>
 #include <QAction>
 #include <QVector>
 #include <QPropertyAnimation>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QWheelEvent>
+#include <QResizeEvent>
+
+// Poppler
+#include <poppler/qt6/poppler-qt6.h>
 
 // ─────────────────────────────────────────────
-// 1. عارض PDF مع Zoom وخلفية داكنة
+// 1. عارض PDF مبني على Poppler
 // ─────────────────────────────────────────────
-class ZoomablePdfView : public QPdfView {
+class PopplerPdfView : public QScrollArea {
     Q_OBJECT
 public:
-    ZoomablePdfView(QWidget *parent = nullptr) : QPdfView(parent) {
-        setPageMode(QPdfView::PageMode::MultiPage);
-        setZoomMode(QPdfView::ZoomMode::Custom);
-        setZoomFactor(1.0);
+    PopplerPdfView(QWidget *parent = nullptr)
+        : QScrollArea(parent), m_document(nullptr), m_zoom(1.0)
+    {
         setStyleSheet(
-            "QPdfView { background-color: #141414; border: none; }"
-            "QAbstractScrollArea { background-color: #141414; }"
+            "QScrollArea { background-color: #141414; border: none; }"
             "QScrollBar:vertical { background: #141414; width: 10px; margin: 0px; border: none; }"
             "QScrollBar::handle:vertical { background: #2d2d2d; min-height: 40px; border-radius: 5px; }"
             "QScrollBar::handle:vertical:hover { background: #444444; }"
@@ -41,19 +44,93 @@ public:
             "QScrollBar::handle:horizontal:hover { background: #444444; }"
             "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { background: none; width: 0px; }"
         );
+        setWidgetResizable(false);
+        setAlignment(Qt::AlignHCenter);
+
+        m_container = new QWidget();
+        m_container->setStyleSheet("background-color: #141414;");
+        m_layout = new QVBoxLayout(m_container);
+        m_layout->setContentsMargins(20, 20, 20, 20);
+        m_layout->setSpacing(10);
+        m_layout->addStretch();
+
+        setWidget(m_container);
         viewport()->setStyleSheet("background-color: #141414;");
     }
+
+    ~PopplerPdfView() {
+        delete m_document;
+    }
+
+    bool loadDocument(const QString &filePath) {
+        delete m_document;
+        m_document = Poppler::Document::load(filePath);
+        if (!m_document || m_document->isLocked()) {
+            delete m_document;
+            m_document = nullptr;
+            return false;
+        }
+        m_document->setRenderHint(Poppler::Document::TextAntialiasing);
+        m_document->setRenderHint(Poppler::Document::Antialiasing);
+        renderPages();
+        return true;
+    }
+
+    void setZoom(double zoom) {
+        m_zoom = qBound(0.4, zoom, 4.0);
+        renderPages();
+    }
+
+    double zoom() const { return m_zoom; }
+
 protected:
     void wheelEvent(QWheelEvent *event) override {
         if (event->modifiers() & Qt::ControlModifier) {
-            double factor = zoomFactor();
-            factor += (event->angleDelta().y() > 0) ? 0.05 : -0.05;
-            setZoomFactor(qBound(0.4, factor, 4.0));
+            double delta = (event->angleDelta().y() > 0) ? 0.05 : -0.05;
+            setZoom(m_zoom + delta);
             event->accept();
         } else {
-            QPdfView::wheelEvent(event);
+            QScrollArea::wheelEvent(event);
         }
     }
+
+private:
+    void renderPages() {
+        if (!m_document) return;
+
+        // حذف الصفحات القديمة
+        QLayoutItem *item;
+        while ((item = m_layout->takeAt(0)) != nullptr) {
+            if (item->widget()) item->widget()->deleteLater();
+            delete item;
+        }
+
+        // رسم كل صفحة بـ Poppler
+        int dpi = qRound(96 * m_zoom);
+        for (int i = 0; i < m_document->numPages(); i++) {
+            Poppler::Page *page = m_document->page(i);
+            if (!page) continue;
+
+            QImage image = page->renderToImage(dpi, dpi);
+            delete page;
+
+            if (image.isNull()) continue;
+
+            QLabel *pageLabel = new QLabel();
+            pageLabel->setPixmap(QPixmap::fromImage(image));
+            pageLabel->setAlignment(Qt::AlignHCenter);
+            pageLabel->setStyleSheet("background: transparent; border: none;");
+            m_layout->addWidget(pageLabel);
+        }
+
+        m_layout->addStretch();
+        m_container->adjustSize();
+    }
+
+    Poppler::Document *m_document;
+    QWidget           *m_container;
+    QVBoxLayout       *m_layout;
+    double             m_zoom;
 };
 
 // ─────────────────────────────────────────────
@@ -65,7 +142,7 @@ public:
     static const int TAB_WIDTH   = 180;
     static const int TAB_HEIGHT  = 30;
     static const int TAB_SPACING = 3;
-    static const int TAB_Y       = 4;  // ✅ ارتفاع ثابت داخل الـ container
+    static const int TAB_Y       = 4;
 
     BookTab(const QString &title, QWidget *parent = nullptr)
         : QWidget(parent), m_title(title), m_selected(false),
@@ -87,7 +164,6 @@ public:
     void setSelected(bool s) { m_selected = s; update(); }
     bool isSelected() const  { return m_selected; }
 
-    // ✅ إيقاف جميع الـ animations على هذه التبويبة قبل حذفها
     void stopAnimations() {
         for (QObject *child : children()) {
             if (auto *anim = qobject_cast<QPropertyAnimation*>(child))
@@ -111,18 +187,15 @@ protected:
             ? QColor(30, 30, 30)
             : (m_hovered ? QColor(50, 50, 50) : QColor(38, 38, 38));
 
-        // ✅ الارتفاع الكامل للتبويبة بدون قص
         QPainterPath path;
         path.addRoundedRect(1, 1, width() - 2, height() - 1, 7, 7);
         p.fillPath(path, bg);
 
-        // ✅ الخط الأبيض في الأسفل عند التحديد
         if (m_selected) {
             p.setPen(QPen(QColor(200, 200, 200), 2));
             p.drawLine(8, height() - 1, width() - 8, height() - 1);
         }
 
-        // النص
         p.setPen(m_selected ? Qt::white : QColor(170, 170, 170));
         QFont font = p.font();
         font.setPointSize(9);
@@ -356,11 +429,9 @@ private slots:
             this, "Open PDF", "", "PDF Files (*.pdf)");
         if (filePath.isEmpty()) return;
 
-        ZoomablePdfView *pdfView = new ZoomablePdfView(this);
-        QPdfDocument *document   = new QPdfDocument(pdfView);
+        PopplerPdfView *pdfView = new PopplerPdfView(this);
 
-        if (document->load(filePath) == QPdfDocument::Error::None) {
-            pdfView->setDocument(document);
+        if (pdfView->loadDocument(filePath)) {
             stackedWidget->addWidget(pdfView);
 
             BookTab *tab = new BookTab(QFileInfo(filePath).fileName(), tabsContainer);
@@ -398,16 +469,12 @@ private slots:
         if (index < 0) return;
 
         int activeIndex = m_currentIndex;
-
-        // ✅ إيقاف أي animation على التبويبة قبل حذفها
         tab->stopAnimations();
 
-        ZoomablePdfView *view = m_views[index];
+        PopplerPdfView *view = m_views[index];
         stackedWidget->removeWidget(view);
         m_tabs.removeAt(index);
         m_views.removeAt(index);
-
-        // ✅ حذف فوري بدون deleteLater لتجنب الـ crash
         delete tab;
         delete view;
 
@@ -415,10 +482,8 @@ private slots:
             m_currentIndex = -1;
             stackedWidget->setCurrentWidget(homePageWidget);
         } else if (index == activeIndex) {
-            // حذفنا التبويبة التي كنا فيها
             selectTab(qMin(activeIndex, m_tabs.size() - 1));
         } else {
-            // حذفنا تبويبة أخرى: ابق في نفس التبويبة
             if (activeIndex > index) activeIndex--;
             m_currentIndex = activeIndex;
             for (int i = 0; i < m_tabs.size(); i++)
@@ -428,7 +493,6 @@ private slots:
         repositionTabs(true);
     }
 
-    // ── السحب الانسيابي ───────────────────────────────────────
     void onDragStarted(BookTab *tab, int globalX) {
         m_draggedTab     = tab;
         m_dragOffsetX    = globalX - tabsContainer->mapToGlobal(tab->pos()).x();
@@ -439,12 +503,10 @@ private slots:
     void onDragMoved(BookTab *tab, int globalX) {
         if (!m_draggedTab || m_draggedTab != tab) return;
 
-        // تحريك التبويبة مع الماوس
         int localX = tabsContainer->mapFromGlobal(QPoint(globalX, 0)).x() - m_dragOffsetX;
         localX = qBound(0, localX, tabsContainer->width() - BookTab::TAB_WIDTH);
         tab->move(localX, BookTab::TAB_Y);
 
-        // حساب الموضع الجديد
         int step     = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
         int centerX  = localX + BookTab::TAB_WIDTH / 2;
         int newIndex = qBound(0, centerX / step, m_tabs.size() - 1);
@@ -462,14 +524,11 @@ private slots:
     void onDragEnded(BookTab *tab) {
         if (!m_draggedTab) return;
         m_draggedTab = nullptr;
-
         int index   = m_tabs.indexOf(tab);
         int targetX = index * (BookTab::TAB_WIDTH + BookTab::TAB_SPACING);
-
         animateTab(tab, targetX);
     }
 
-    // تحريك تبويبة واحدة لموضع معين
     void animateTab(BookTab *tab, int targetX) {
         if (tab->x() == targetX) return;
         QPropertyAnimation *anim = new QPropertyAnimation(tab, "pos", tab);
@@ -480,7 +539,6 @@ private slots:
         anim->start(QAbstractAnimation::DeleteWhenStopped);
     }
 
-    // تحريك جميع التبويبات لمواضعها باستثناء المسحوبة
     void animateTabsExcept(BookTab *except) {
         int step = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
         for (int i = 0; i < m_tabs.size(); i++) {
@@ -489,7 +547,6 @@ private slots:
         }
     }
 
-    // وضع جميع التبويبات في مواضعها
     void repositionTabs(bool animated) {
         int step = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
         for (int i = 0; i < m_tabs.size(); i++) {
@@ -506,7 +563,7 @@ private:
     QWidget                   *tabsContainer;
     QPushButton               *menuBtn;
     QVector<BookTab*>          m_tabs;
-    QVector<ZoomablePdfView*>  m_views;
+    QVector<PopplerPdfView*>   m_views;
     int                        m_currentIndex;
     QPoint                     m_windowDragStart;
     bool                       m_draggingWindow;

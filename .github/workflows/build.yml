@@ -15,22 +15,22 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Install Qt6 and Poppler
+      - name: Install Dependencies
         run: |
           sudo apt update
+
           sudo apt install -y \
             qt6-base-dev \
+            qt6-base-dev-tools \
             libpoppler-qt6-dev \
             cmake \
+            ninja-build \
             build-essential
 
       - name: Configure CMake
         run: |
-          mkdir build
-          cd build
-          cmake ..
+          cmake -B build -G Ninja
 
       - name: Build Project
         run: |
-          cd build
-          cmake --build .
+          cmake --build build

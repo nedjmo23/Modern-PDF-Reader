@@ -60,7 +60,8 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.6.3
-
+          arch: win64_mingw
+          
       - name: Install CMake
         uses: lukka/get-cmake@latest
 

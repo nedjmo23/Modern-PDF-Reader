@@ -174,12 +174,12 @@ QMap<QString, QPixmap> m_pageCache;
 #endif
 #ifdef _WIN32
 
-class PopplerPdfView : public QWidget {
+class PopplerPdfView : public QScrollArea {
     Q_OBJECT
 
 public:
     PopplerPdfView(QWidget *parent = nullptr)
-        : QWidget(parent)
+        : QScrollArea(parent)
     {
         QVBoxLayout *layout = new QVBoxLayout(this);
 

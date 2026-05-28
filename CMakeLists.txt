@@ -9,17 +9,6 @@ set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
-# ─────────────────────────────────────────────
-# Poppler فقط على Linux
-# ─────────────────────────────────────────────
-if(NOT WIN32)
-
-    find_package(PkgConfig REQUIRED)
-
-    pkg_check_modules(POPPLER REQUIRED poppler-qt6)
-
-endif()
-
 qt_standard_project_setup()
 
 set(PROJECT_SOURCES
@@ -30,28 +19,6 @@ qt_add_executable(ModernPDFReader
     ${PROJECT_SOURCES}
 )
 
-# ─────────────────────────────────────────────
-# ربط Poppler فقط على Linux
-# ─────────────────────────────────────────────
-if(NOT WIN32)
-
-    target_include_directories(ModernPDFReader PRIVATE
-        ${POPPLER_INCLUDE_DIRS}
-    )
-
-    target_link_directories(ModernPDFReader PRIVATE
-        ${POPPLER_LIBRARY_DIRS}
-    )
-
-    target_link_libraries(ModernPDFReader PRIVATE
-        Qt6::Widgets
-        ${POPPLER_LIBRARIES}
-    )
-
-else()
-
-    target_link_libraries(ModernPDFReader PRIVATE
-        Qt6::Widgets
-    )
-
-endif()
+target_link_libraries(ModernPDFReader PRIVATE
+    Qt6::Widgets
+)

@@ -10,43 +10,6 @@ on:
 jobs:
 
   # ─────────────────────────────
-  # Linux Build
-  # ─────────────────────────────
-  build-linux:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
-
-      - name: Install Dependencies
-        run: |
-          sudo apt update
-
-          sudo apt install -y \
-            qt6-base-dev \
-            qt6-base-dev-tools \
-            libpoppler-qt6-dev \
-            cmake \
-            ninja-build \
-            build-essential
-
-      - name: Configure CMake
-        run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build Project
-        run: |
-          cmake --build build
-
-      - name: Upload Linux Build
-        uses: actions/upload-artifact@v4
-        with:
-          name: ModernPDFReader-Linux
-          path: build
-
-
-  # ─────────────────────────────
   # Windows Build
   # ─────────────────────────────
   build-windows:

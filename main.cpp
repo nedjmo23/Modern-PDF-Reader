@@ -1,4 +1,4 @@
-// v11 - Poppler
+// v12 - Temporary UI Build
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -16,12 +16,6 @@
 #include <QAction>
 #include <QVector>
 #include <QPropertyAnimation>
-#include <QScrollArea>
-#include <QScrollBar>
-#include <QWheelEvent>
-#include <QResizeEvent>
-#include <memory>
-#include <QMap>
 
 // ─────────────────────────────────────────────
 // 2. تبويبة كتاب مع دعم السحب الانسيابي
@@ -319,31 +313,68 @@ private slots:
             this, "Open PDF", "", "PDF Files (*.pdf)");
         if (filePath.isEmpty()) return;
 
-        PopplerPdfView *pdfView = new PopplerPdfView(this);
+        QWidget *view = new QWidget(this);
 
-        if (pdfView->loadDocument(filePath)) {
-            stackedWidget->addWidget(pdfView);
+        view->setStyleSheet(
+            "background-color: #141414;"
+        );
 
-            BookTab *tab = new BookTab(QFileInfo(filePath).fileName(), tabsContainer);
-            tab->show();
-            m_tabs.append(tab);
-            m_views.append(pdfView);
+        QVBoxLayout *layout = new QVBoxLayout(view);
 
-            connect(tab, &BookTab::clicked, this, [this, tab]() {
-                selectTab(m_tabs.indexOf(tab));
-            });
-            connect(tab, &BookTab::closeRequested, this, [this, tab]() {
-                closeTabByWidget(tab);
-            });
-            connect(tab, &BookTab::dragStarted, this, &ModernPDFReader::onDragStarted);
-            connect(tab, &BookTab::dragMoved,   this, &ModernPDFReader::onDragMoved);
-            connect(tab, &BookTab::dragEnded,   this, &ModernPDFReader::onDragEnded);
+        QLabel *label = new QLabel(
+            "MuPDF engine will be added soon.",
+            view
+        );
 
-            repositionTabs(false);
-            selectTab(m_tabs.size() - 1);
-        } else {
-            delete pdfView;
-        }
+        label->setAlignment(Qt::AlignCenter);
+
+        label->setStyleSheet(
+            "color: white;"
+            "font-size: 22px;"
+        );
+
+        layout->addWidget(label);
+
+        stackedWidget->addWidget(view);
+
+        BookTab *tab = new BookTab(
+            QFileInfo(filePath).fileName(),
+            tabsContainer
+        );
+
+        tab->show();
+
+        m_tabs.append(tab);
+
+        m_views.append(view);
+
+        connect(tab, &BookTab::clicked, this, [this, tab]() {
+
+            selectTab(m_tabs.indexOf(tab));
+
+        });
+
+        connect(tab, &BookTab::closeRequested, this, [this, tab]() {
+
+            closeTabByWidget(tab);
+
+        });
+
+        connect(tab, &BookTab::dragStarted,
+                this,
+                &ModernPDFReader::onDragStarted);
+ 
+        connect(tab, &BookTab::dragMoved,
+                this,
+                &ModernPDFReader::onDragMoved);
+
+        connect(tab, &BookTab::dragEnded,
+                this,
+                &ModernPDFReader::onDragEnded);
+
+        repositionTabs(false);
+
+        selectTab(m_tabs.size() - 1);
     }
 
     void selectTab(int index) {
@@ -361,7 +392,7 @@ private slots:
         int activeIndex = m_currentIndex;
         tab->stopAnimations();
 
-        PopplerPdfView *view = m_views[index];
+        QWidget *view = m_views[index];
         stackedWidget->removeWidget(view);
         m_tabs.removeAt(index);
         m_views.removeAt(index);
@@ -453,7 +484,7 @@ private:
     QWidget                   *tabsContainer;
     QPushButton               *menuBtn;
     QVector<BookTab*>          m_tabs;
-    QVector<PopplerPdfView*>   m_views;
+    QVector<QWidget*>          m_views;
     int                        m_currentIndex;
     QPoint                     m_windowDragStart;
     bool                       m_draggingWindow;

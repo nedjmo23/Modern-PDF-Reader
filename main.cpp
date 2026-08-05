@@ -1,4 +1,4 @@
-// v12 - Temporary UI Build
+// v13 - Modern Dynamic Island UI
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -16,9 +16,139 @@
 #include <QAction>
 #include <QVector>
 #include <QPropertyAnimation>
+#include <QEasingCurve>
 
 // ─────────────────────────────────────────────
-// 2. تبويبة كتاب مع دعم السحب الانسيابي
+// 1. زر السهم الفخم لطي وإظهار الجزيرة الديناميكية
+// ─────────────────────────────────────────────
+class IslandToggleButton : public QPushButton {
+    Q_OBJECT
+public:
+    IslandToggleButton(QWidget *parent = nullptr) 
+        : QPushButton(parent), m_collapsed(false) 
+    {
+        setFixedSize(26, 12);
+        setCursor(Qt::PointingHandCursor);
+        setStyleSheet(
+            "QPushButton { background: #252526; border: 1px solid #3d3d3d; border-top: none; "
+            "border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; }"
+            "QPushButton:hover { background-color: #007acc; border-color: #007acc; }"
+        );
+    }
+
+    void setCollapsed(bool collapsed) {
+        m_collapsed = collapsed;
+        update();
+    }
+
+    bool isCollapsed() const { return m_collapsed; }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        QPushButton::paintEvent(event);
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(QPen(Qt::white, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+
+        int cx = width() / 2;
+        int cy = height() / 2;
+
+        QPainterPath path;
+        if (m_collapsed) {
+            // سهم متجه لأسفل (إظهار)
+            path.moveTo(cx - 4, cy - 2);
+            path.lineTo(cx, cy + 2);
+            path.lineTo(cx + 4, cy - 2);
+        } else {
+            // سهم متجه للأعلى (إخفاء)
+            path.moveTo(cx - 4, cy + 2);
+            path.lineTo(cx, cy - 2);
+            path.lineTo(cx + 4, cy + 2);
+        }
+        p.drawPath(path);
+    }
+
+private:
+    bool m_collapsed;
+};
+
+// ─────────────────────────────────────────────
+// 2. الجزيرة الديناميكية المعلقة (Dynamic Island)
+// ─────────────────────────────────────────────
+class DynamicIsland : public QWidget {
+    Q_OBJECT
+public:
+    DynamicIsland(QWidget *parent = nullptr) : QWidget(parent) {
+        setFixedHeight(32);
+        setStyleSheet(
+            "QWidget#IslandBody { "
+            "  background-color: #222222; "
+            "  border: 1px solid #383838; "
+            "  border-radius: 16px; "
+            "}"
+            "QLabel { color: #cccccc; font-size: 11px; font-weight: bold; font-family: 'Segoe UI'; }"
+            "QPushButton { background: transparent; border: none; color: #aaaaaa; font-size: 11px; font-weight: bold; border-radius: 10px; }"
+            "QPushButton:hover { background-color: #333333; color: white; }"
+        );
+
+        setObjectName("IslandBody");
+
+        QHBoxLayout *layout = new QHBoxLayout(this);
+        layout->setContentsMargins(12, 0, 12, 0);
+        layout->setSpacing(6);
+
+        // --- قسم أزرار الصفحات العمودية ---
+        QWidget *navContainer = new QWidget(this);
+        QVBoxLayout *navLayout = new QVBoxLayout(navContainer);
+        navLayout->setContentsMargins(0, 2, 0, 2);
+        navLayout->setSpacing(0);
+
+        QPushButton *btnUp = new QPushButton("▲", this);
+        QPushButton *btnDown = new QPushButton("▼", this);
+        btnUp->setFixedSize(16, 12);
+        btnDown->setFixedSize(16, 12);
+        
+        QString arrowStyle = "QPushButton { font-size: 8px; color: #888888; }"
+                            "QPushButton:hover { color: #007acc; background: transparent; }";
+        btnUp->setStyleSheet(arrowStyle);
+        btnDown->setStyleSheet(arrowStyle);
+
+        navLayout->addWidget(btnUp);
+        navLayout->addWidget(btnDown);
+        layout->addWidget(navContainer);
+
+        // مؤشر الصفحات
+        pageLabel = new QLabel("1 / 10", this);
+        layout->addWidget(pageLabel);
+
+        // فاصل راسي
+        QFrame *sep = new QFrame(this);
+        sep->setFrameShape(QFrame::VLine);
+        sep->setFixedSize(1, 14);
+        sep->setStyleSheet("background-color: #383838; border: none;");
+        layout->addWidget(sep);
+
+        // --- قسم الزوم ---
+        QPushButton *btnZoomOut = new QPushButton("—", this);
+        QPushButton *btnZoomIn = new QPushButton("+", this);
+        btnZoomOut->setFixedSize(20, 20);
+        btnZoomIn->setFixedSize(20, 20);
+
+        zoomLabel = new QLabel("100%", this);
+
+        layout->addWidget(btnZoomOut);
+        layout->addWidget(zoomLabel);
+        layout->addWidget(btnZoomIn);
+
+        adjustSize();
+    }
+
+    QLabel *pageLabel;
+    QLabel *zoomLabel;
+};
+
+// ─────────────────────────────────────────────
+// 3. تبويبة كتاب مع دعم السحب الانسيابي
 // ─────────────────────────────────────────────
 class BookTab : public QWidget {
     Q_OBJECT
@@ -128,7 +258,7 @@ private:
 };
 
 // ─────────────────────────────────────────────
-// 3. زر المنزل المرسوم يدوياً
+// 4. زر المنزل المرسوم يدوياً
 // ─────────────────────────────────────────────
 class HomeButton : public QPushButton {
     Q_OBJECT
@@ -161,14 +291,14 @@ protected:
 };
 
 // ─────────────────────────────────────────────
-// 4. النافذة الرئيسية
+// 5. النافذة الرئيسية
 // ─────────────────────────────────────────────
 class ModernPDFReader : public QMainWindow {
     Q_OBJECT
 public:
     ModernPDFReader()
         : m_draggingWindow(false), m_currentIndex(-1),
-          m_draggedTab(nullptr), m_dragOffsetX(0)
+          m_draggedTab(nullptr), m_dragOffsetX(0), m_islandVisible(false)
     {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
         resize(1100, 800);
@@ -281,9 +411,23 @@ public:
         stackedWidget->setCurrentIndex(0);
         mainLayout->addWidget(stackedWidget, 1);
         setCentralWidget(central);
+
+        // ── إنشاء الجزيرة الديناميكية وزر التبديل فوق العرض ──
+        dynamicIsland = new DynamicIsland(this);
+        islandToggleBtn = new IslandToggleButton(this);
+
+        dynamicIsland->hide();
+        islandToggleBtn->hide();
+
+        connect(islandToggleBtn, &QPushButton::clicked, this, &ModernPDFReader::toggleIslandState);
     }
 
 protected:
+    void resizeEvent(QResizeEvent *event) override {
+        QMainWindow::resizeEvent(event);
+        updateIslandPosition(false);
+    }
+
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton && event->position().y() < 38) {
             m_windowDragStart = event->globalPosition().toPoint() - frameGeometry().topLeft();
@@ -302,10 +446,17 @@ protected:
     }
 
 private slots:
+    void toggleIslandState() {
+        bool isCollapsed = islandToggleBtn->isCollapsed();
+        islandToggleBtn->setCollapsed(!isCollapsed);
+        animateIslandPosition(!isCollapsed);
+    }
+
     void showHomePage() {
         stackedWidget->setCurrentWidget(homePageWidget);
         for (auto *tab : m_tabs) tab->setSelected(false);
         m_currentIndex = -1;
+        setIslandVisible(false);
     }
 
     void openPDF() {
@@ -314,25 +465,12 @@ private slots:
         if (filePath.isEmpty()) return;
 
         QWidget *view = new QWidget(this);
-
-        view->setStyleSheet(
-            "background-color: #141414;"
-        );
-
+        view->setStyleSheet("background-color: #141414;");
         QVBoxLayout *layout = new QVBoxLayout(view);
 
-        QLabel *label = new QLabel(
-            "MuPDF engine will be added soon.",
-            view
-        );
-
+        QLabel *label = new QLabel("MuPDF engine will be added soon.", view);
         label->setAlignment(Qt::AlignCenter);
-
-        label->setStyleSheet(
-            "color: white;"
-            "font-size: 22px;"
-        );
-
+        label->setStyleSheet("color: white; font-size: 22px;");
         layout->addWidget(label);
 
         stackedWidget->addWidget(view);
@@ -341,39 +479,24 @@ private slots:
             QFileInfo(filePath).fileName(),
             tabsContainer
         );
-
         tab->show();
 
         m_tabs.append(tab);
-
         m_views.append(view);
 
         connect(tab, &BookTab::clicked, this, [this, tab]() {
-
             selectTab(m_tabs.indexOf(tab));
-
         });
 
         connect(tab, &BookTab::closeRequested, this, [this, tab]() {
-
             closeTabByWidget(tab);
-
         });
 
-        connect(tab, &BookTab::dragStarted,
-                this,
-                &ModernPDFReader::onDragStarted);
- 
-        connect(tab, &BookTab::dragMoved,
-                this,
-                &ModernPDFReader::onDragMoved);
-
-        connect(tab, &BookTab::dragEnded,
-                this,
-                &ModernPDFReader::onDragEnded);
+        connect(tab, &BookTab::dragStarted, this, &ModernPDFReader::onDragStarted);
+        connect(tab, &BookTab::dragMoved, this, &ModernPDFReader::onDragMoved);
+        connect(tab, &BookTab::dragEnded, this, &ModernPDFReader::onDragEnded);
 
         repositionTabs(false);
-
         selectTab(m_tabs.size() - 1);
     }
 
@@ -383,6 +506,8 @@ private slots:
         for (int i = 0; i < m_tabs.size(); i++)
             m_tabs[i]->setSelected(i == index);
         stackedWidget->setCurrentWidget(m_views[index]);
+
+        setIslandVisible(true);
     }
 
     void closeTabByWidget(BookTab *tab) {
@@ -402,6 +527,7 @@ private slots:
         if (m_tabs.isEmpty()) {
             m_currentIndex = -1;
             stackedWidget->setCurrentWidget(homePageWidget);
+            setIslandVisible(false);
         } else if (index == activeIndex) {
             selectTab(qMin(activeIndex, m_tabs.size() - 1));
         } else {
@@ -478,11 +604,71 @@ private slots:
         }
     }
 
+    // --- التحكم بالجزيرة وموضعها ---
+    void setIslandVisible(bool visible) {
+        m_islandVisible = visible;
+        if (visible) {
+            dynamicIsland->show();
+            islandToggleBtn->show();
+            dynamicIsland->raise();
+            islandToggleBtn->raise();
+            islandToggleBtn->setCollapsed(false);
+            animateIslandPosition(false);
+        } else {
+            dynamicIsland->hide();
+            islandToggleBtn->hide();
+        }
+    }
+
+    void updateIslandPosition(bool collapsed) {
+        if (!m_islandVisible) return;
+
+        int centerX = width() / 2;
+        int islandX = centerX - (dynamicIsland->width() / 2);
+        int targetY = collapsed ? (-dynamicIsland->height() + 2) : 42;
+
+        dynamicIsland->move(islandX, targetY);
+        
+        int toggleY = collapsed ? 38 : (dynamicIsland->y() + dynamicIsland->height() - 1);
+        islandToggleBtn->move(centerX - (islandToggleBtn->width() / 2), toggleY);
+        
+        dynamicIsland->raise();
+        islandToggleBtn->raise();
+    }
+
+    void animateIslandPosition(bool collapsed) {
+        if (!m_islandVisible) return;
+
+        int centerX = width() / 2;
+        int islandX = centerX - (dynamicIsland->width() / 2);
+        int endY = collapsed ? (-dynamicIsland->height() + 2) : 42;
+
+        QPropertyAnimation *animIsland = new QPropertyAnimation(dynamicIsland, "pos", this);
+        animIsland->setDuration(220);
+        animIsland->setEasingCurve(QEasingCurve::OutCubic);
+        animIsland->setStartValue(dynamicIsland->pos());
+        animIsland->setEndValue(QPoint(islandX, endY));
+
+        int toggleEndY = collapsed ? 38 : (endY + dynamicIsland->height() - 1);
+        QPropertyAnimation *animBtn = new QPropertyAnimation(islandToggleBtn, "pos", this);
+        animBtn->setDuration(220);
+        animBtn->setEasingCurve(QEasingCurve::OutCubic);
+        animBtn->setStartValue(islandToggleBtn->pos());
+        animBtn->setEndValue(QPoint(centerX - (islandToggleBtn->width() / 2), toggleEndY));
+
+        animIsland->start(QAbstractAnimation::DeleteWhenStopped);
+        animBtn->start(QAbstractAnimation::DeleteWhenStopped);
+    }
+
 private:
     QStackedWidget            *stackedWidget;
     QWidget                   *homePageWidget;
     QWidget                   *tabsContainer;
     QPushButton               *menuBtn;
+    DynamicIsland             *dynamicIsland;
+    IslandToggleButton        *islandToggleBtn;
+    bool                       m_islandVisible;
+
     QVector<BookTab*>          m_tabs;
     QVector<QWidget*>          m_views;
     int                        m_currentIndex;

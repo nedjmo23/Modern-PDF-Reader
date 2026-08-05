@@ -1,4 +1,4 @@
-// v17 - Complete UI with Recent Books Grid, Card Animations, History Clearing, & Theme Support
+// v18 - Fixed Crash on Recent Card Click & Enlarged Card Geometry
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -20,7 +20,6 @@
 #include <QEasingCurve>
 #include <QSettings>
 #include <QDateTime>
-#include <QGraphicsDropShadowEffect>
 #include <QScrollArea>
 
 // ─────────────────────────────────────────────
@@ -245,8 +244,8 @@ public:
     static const int TAB_SPACING = 3;
     static const int TAB_Y       = 4;
 
-    BookTab(const QString &title, QWidget *parent = nullptr)
-        : QWidget(parent), m_title(title), m_selected(false),
+    BookTab(const QString &title, const QString &filePath, QWidget *parent = nullptr)
+        : QWidget(parent), m_title(title), m_filePath(filePath), m_selected(false),
           m_hovered(false), m_dragging(false), m_isDark(true)
     {
         setFixedSize(TAB_WIDTH, TAB_HEIGHT);
@@ -262,6 +261,7 @@ public:
         connect(closeBtn, &QPushButton::clicked, this, &BookTab::closeRequested);
     }
 
+    QString filePath() const { return m_filePath; }
     void setSelected(bool s) { m_selected = s; update(); }
     void setTheme(bool isDark) { m_isDark = isDark; update(); }
 
@@ -340,6 +340,7 @@ protected:
 
 private:
     QString      m_title;
+    QString      m_filePath;
     bool         m_selected;
     bool         m_hovered;
     bool         m_dragging;
@@ -349,7 +350,7 @@ private:
 };
 
 // ─────────────────────────────────────────────
-// 4. بطاقة الكتاب في الصفحة الرئيسية (Recent Card)
+// 4. بطاقة الكتاب العريضة (Recent Card)
 // ─────────────────────────────────────────────
 class RecentCard : public QFrame {
     Q_OBJECT
@@ -357,7 +358,8 @@ public:
     RecentCard(const QString &filePath, const QString &lastOpened, QWidget *parent = nullptr)
         : QFrame(parent), m_filePath(filePath), m_isDark(true)
     {
-        setFixedSize(160, 210);
+        // أبعاد عريضة وأكبر (220x260)
+        setFixedSize(220, 260);
         setCursor(Qt::PointingHandCursor);
         setObjectName("RecentCard");
 
@@ -365,30 +367,30 @@ public:
         layout->setContentsMargins(8, 8, 8, 8);
         layout->setSpacing(6);
 
-        // منطقة الغلاف المعاين
+        // غلاف معاينة الكتاب (204x170)
         coverLabel = new QLabel(this);
-        coverLabel->setFixedSize(144, 130);
+        coverLabel->setFixedSize(204, 170);
         coverLabel->setAlignment(Qt::AlignCenter);
-        coverLabel->setStyleSheet("background-color: #2a2a2a; border-radius: 6px; font-size: 32px;");
+        coverLabel->setStyleSheet("background-color: #2a2a2a; border-radius: 6px; font-size: 42px;");
         coverLabel->setText("📄");
         layout->addWidget(coverLabel);
 
         // عنوان الكتاب
         QFileInfo info(filePath);
         titleLabel = new QLabel(info.fileName(), this);
-        titleLabel->setFont(QFont("Segoe UI", 9, QFont::Bold));
+        titleLabel->setFont(QFont("Segoe UI", 10, QFont::Bold));
         titleLabel->setToolTip(info.fileName());
         layout->addWidget(titleLabel);
 
-        // تاريخ آخر فتح
+        // تاريخ الفتح
         dateLabel = new QLabel(lastOpened, this);
         dateLabel->setFont(QFont("Segoe UI", 8));
         layout->addWidget(dateLabel);
 
         // زر الحذف الفردي (✕)
         deleteBtn = new QPushButton("✕", this);
-        deleteBtn->setFixedSize(20, 20);
-        deleteBtn->move(width() - 24, 4);
+        deleteBtn->setFixedSize(22, 22);
+        deleteBtn->move(width() - 26, 6);
         deleteBtn->setCursor(Qt::PointingHandCursor);
         connect(deleteBtn, &QPushButton::clicked, this, [this](bool){
             emit deleteRequested(m_filePath);
@@ -406,10 +408,11 @@ public:
                 "QFrame#RecentCard { background-color: #222222; border: 1px solid #333333; border-radius: 8px; }"
                 "QFrame#RecentCard:hover { background-color: #2a2a2a; border-color: #007acc; }"
             );
+            coverLabel->setStyleSheet("background-color: #2a2a2a; border-radius: 6px; color: #888888; font-size: 42px;");
             titleLabel->setStyleSheet("color: #ffffff;");
             dateLabel->setStyleSheet("color: #888888;");
             deleteBtn->setStyleSheet(
-                "QPushButton { background: #333333; color: #aaaaaa; border-radius: 10px; border: none; font-size: 10px; }"
+                "QPushButton { background: #333333; color: #aaaaaa; border-radius: 11px; border: none; font-size: 11px; }"
                 "QPushButton:hover { background: #e81123; color: white; }"
             );
         } else {
@@ -417,10 +420,11 @@ public:
                 "QFrame#RecentCard { background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; }"
                 "QFrame#RecentCard:hover { background-color: #f8f8f8; border-color: #007acc; }"
             );
+            coverLabel->setStyleSheet("background-color: #e9e9e9; border-radius: 6px; color: #555555; font-size: 42px;");
             titleLabel->setStyleSheet("color: #222222;");
             dateLabel->setStyleSheet("color: #666666;");
             deleteBtn->setStyleSheet(
-                "QPushButton { background: #e0e0e0; color: #555555; border-radius: 10px; border: none; font-size: 10px; }"
+                "QPushButton { background: #e0e0e0; color: #555555; border-radius: 11px; border: none; font-size: 11px; }"
                 "QPushButton:hover { background: #e81123; color: white; }"
             );
         }
@@ -433,17 +437,7 @@ signals:
 protected:
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton && !deleteBtn->underMouse()) {
-            // أنيميشن انكماش ناعم عند الضغط
-            QPropertyAnimation *anim = new QPropertyAnimation(this, "geometry", this);
-            anim->setDuration(100);
-            QRect orig = geometry();
-            anim->setStartValue(orig);
-            anim->setEndValue(QRect(orig.x() + 4, orig.y() + 4, orig.width() - 8, orig.height() - 8));
-            connect(anim, &QPropertyAnimation::finished, this, [this, orig]() {
-                setGeometry(orig);
-                emit clicked(m_filePath);
-            });
-            anim->start(QAbstractAnimation::DeleteWhenStopped);
+            emit clicked(m_filePath);
         }
     }
 
@@ -522,7 +516,7 @@ public:
     {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
         resize(1100, 800);
-        setMinimumSize(750, 550);
+        setMinimumSize(800, 600);
 
         centralWidget = new QWidget(this);
         QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
@@ -611,7 +605,6 @@ private slots:
         QVBoxLayout *homeLayout = new QVBoxLayout(homePageWidget);
         homeLayout->setContentsMargins(40, 30, 40, 30);
 
-        // شريط رأس الصفحة الرئيسية
         QHBoxLayout *recentHeader = new QHBoxLayout();
         QLabel *recentTitle = new QLabel("Recent Books", homePageWidget);
         recentTitle->setFont(QFont("Segoe UI", 16, QFont::Bold));
@@ -626,7 +619,6 @@ private slots:
         recentHeader->addWidget(btnClearHistory);
         homeLayout->addLayout(recentHeader);
 
-        // شبكة البطاقات
         cardsContainerWidget = new QWidget(homePageWidget);
         recentGrid = new QGridLayout(cardsContainerWidget);
         recentGrid->setSpacing(20);
@@ -709,7 +701,10 @@ private slots:
         QSettings settings("ModernPDFReader", "History");
         QStringList recentFiles = settings.value("recentFiles").toStringList();
 
-        for (auto *card : m_recentCards) delete card;
+        for (auto *card : m_recentCards) {
+            recentGrid->removeWidget(card);
+            delete card;
+        }
         m_recentCards.clear();
 
         int row = 0, col = 0;
@@ -768,20 +763,28 @@ private slots:
     }
 
     void openPDFFilePath(const QString &filePath) {
+        // إذا كان الكتاب مفتوحاً مسبقاً، تحول إلى تبويبته فوراً
+        for (int i = 0; i < m_tabs.size(); ++i) {
+            if (m_tabs[i]->filePath() == filePath) {
+                selectTab(i);
+                return;
+            }
+        }
+
         saveToRecentHistory(filePath);
 
         QWidget *view = new QWidget(this);
         view->setStyleSheet(m_isDarkMode ? "background-color: #141414;" : "background-color: #f3f3f3;");
         QVBoxLayout *layout = new QVBoxLayout(view);
 
-        QLabel *label = new QLabel("MuPDF engine will be added soon.", view);
+        QLabel *label = new QLabel("MuPDF engine will be added soon.\n\nFile: " + QFileInfo(filePath).fileName(), view);
         label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet(m_isDarkMode ? "color: white; font-size: 22px;" : "color: black; font-size: 22px;");
+        label->setStyleSheet(m_isDarkMode ? "color: white; font-size: 20px;" : "color: black; font-size: 20px;");
         layout->addWidget(label);
 
         stackedWidget->addWidget(view);
 
-        BookTab *tab = new BookTab(QFileInfo(filePath).fileName(), tabsContainer);
+        BookTab *tab = new BookTab(QFileInfo(filePath).fileName(), filePath, tabsContainer);
         tab->setTheme(m_isDarkMode);
         tab->show();
 

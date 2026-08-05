@@ -1,4 +1,4 @@
-// main.cpp - Fixed GitHub Actions CMake AUTOMOC & C2039 Build Errors
+// main.cpp - Added Reading Themes, Pin Tabs & Close Unpinned Tabs
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -23,6 +23,9 @@
 #include <QScrollArea>
 #include <QScroller>
 
+// أنماط ألوان القراءة
+enum ReadingTheme { ThemeLight, ThemeDark, ThemeSepia, ThemeNord };
+
 // ─────────────────────────────────────────────
 // 1. زر السهم لطي وإظهار الجزيرة الديناميكية
 // ─────────────────────────────────────────────
@@ -30,7 +33,7 @@ class IslandToggleButton : public QPushButton {
     Q_OBJECT
 public:
     explicit IslandToggleButton(QWidget *parent = nullptr) 
-        : QPushButton(parent), m_collapsed(false), m_isDark(true)
+        : QPushButton(parent), m_collapsed(false), m_theme(ThemeDark)
     {
         setFixedSize(28, 12);
         setCursor(Qt::PointingHandCursor);
@@ -42,18 +45,16 @@ public:
         update();
     }
 
-    bool isCollapsed() const { 
-        return m_collapsed; 
-    }
+    bool isCollapsed() const { return m_collapsed; }
 
-    void updateTheme(bool isDark) {
-        m_isDark = isDark;
+    void updateTheme(ReadingTheme theme) {
+        m_theme = theme;
         updateStyle();
     }
 
 private:
     void updateStyle() {
-        if (m_isDark) {
+        if (m_theme == ThemeDark || m_theme == ThemeNord) {
             setStyleSheet(
                 "QPushButton { background: #252526; border: 1px solid #3d3d3d; border-top: none; "
                 "border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; }"
@@ -73,27 +74,22 @@ protected:
         QPushButton::paintEvent(event);
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
-        p.setPen(QPen(m_isDark ? Qt::white : QColor(30, 30, 30), 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        bool isDark = (m_theme == ThemeDark || m_theme == ThemeNord);
+        p.setPen(QPen(isDark ? Qt::white : QColor(30, 30, 30), 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
 
-        int cx = width() / 2;
-        int cy = height() / 2;
-
+        int cx = width() / 2, cy = height() / 2;
         QPainterPath path;
         if (m_collapsed) {
-            path.moveTo(cx - 4, cy - 2);
-            path.lineTo(cx, cy + 2);
-            path.lineTo(cx + 4, cy - 2);
+            path.moveTo(cx - 4, cy - 2); path.lineTo(cx, cy + 2); path.lineTo(cx + 4, cy - 2);
         } else {
-            path.moveTo(cx - 4, cy + 2);
-            path.lineTo(cx, cy - 2);
-            path.lineTo(cx + 4, cy + 2);
+            path.moveTo(cx - 4, cy + 2); path.lineTo(cx, cy - 2); path.lineTo(cx + 4, cy + 2);
         }
         p.drawPath(path);
     }
 
 private:
     bool m_collapsed;
-    bool m_isDark;
+    ReadingTheme m_theme;
 };
 
 // ─────────────────────────────────────────────
@@ -109,7 +105,7 @@ public:
     {
         setFixedHeight(32);
         setObjectName("IslandBody");
-        updateThemeStyle(true);
+        updateThemeStyle(ThemeDark);
 
         QHBoxLayout *layout = new QHBoxLayout(this);
         layout->setContentsMargins(10, 0, 10, 0);
@@ -180,8 +176,8 @@ public:
         adjustSize();
     }
 
-    void updateThemeStyle(bool isDark) {
-        if (isDark) {
+    void updateThemeStyle(ReadingTheme theme) {
+        if (theme == ThemeDark || theme == ThemeNord) {
             setStyleSheet(
                 "QWidget#IslandBody { background-color: #222222; border: 1px solid #383838; border-radius: 16px; }"
                 "QLabel { color: #cccccc; font-size: 11px; font-weight: bold; font-family: 'Segoe UI'; }"
@@ -246,7 +242,7 @@ private:
 };
 
 // ─────────────────────────────────────────────
-// 3. تبويبة الكتاب
+// 3. تبويبة الكتاب (مع التثبيت)
 // ─────────────────────────────────────────────
 class BookTab : public QWidget {
     Q_OBJECT
@@ -258,7 +254,7 @@ public:
 
     BookTab(const QString &title, const QString &filePath, QWidget *parent = nullptr)
         : QWidget(parent), m_title(title), m_filePath(filePath), m_selected(false),
-          m_hovered(false), m_dragging(false), m_isDark(true)
+          m_hovered(false), m_dragging(false), m_pinned(false), m_theme(ThemeDark)
     {
         setFixedSize(TAB_WIDTH, TAB_HEIGHT);
         setCursor(Qt::PointingHandCursor);
@@ -274,8 +270,15 @@ public:
     }
 
     QString filePath() const { return m_filePath; }
+    bool isPinned() const { return m_pinned; }
+    void setPinned(bool pinned) {
+        m_pinned = pinned;
+        closeBtn->setVisible(!m_pinned);
+        update();
+    }
+
     void setSelected(bool s) { m_selected = s; update(); }
-    void setTheme(bool isDark) { m_isDark = isDark; update(); }
+    void setTheme(ReadingTheme theme) { m_theme = theme; update(); }
 
     void stopAnimations() {
         for (QObject *child : children()) {
@@ -287,6 +290,8 @@ public:
 signals:
     void clicked();
     void closeRequested();
+    void pinToggled(BookTab *tab);
+    void closeUnpinnedRequested();
     void dragStarted(BookTab *tab, int globalX);
     void dragMoved(BookTab *tab, int globalX);
     void dragEnded(BookTab *tab);
@@ -297,10 +302,11 @@ protected:
         p.setRenderHint(QPainter::Antialiasing);
 
         QColor bg;
-        if (m_isDark) {
-            bg = m_selected ? QColor(30, 30, 30) : (m_hovered ? QColor(50, 50, 50) : QColor(38, 38, 38));
-        } else {
-            bg = m_selected ? QColor(255, 255, 255) : (m_hovered ? QColor(225, 225, 225) : QColor(210, 210, 210));
+        switch (m_theme) {
+            case ThemeLight: bg = m_selected ? QColor(255, 255, 255) : (m_hovered ? QColor(225, 225, 225) : QColor(210, 210, 210)); break;
+            case ThemeDark:  bg = m_selected ? QColor(30, 30, 30) : (m_hovered ? QColor(50, 50, 50) : QColor(38, 38, 38)); break;
+            case ThemeSepia: bg = m_selected ? QColor(24bf238) : (m_hovered ? QColor(235, 222, 195) : QColor(225, 210, 180)); break;
+            case ThemeNord:  bg = m_selected ? QColor(46, 52, 64) : (m_hovered ? QColor(67, 76, 94) : QColor(59, 66, 82)); break;
         }
 
         QPainterPath path;
@@ -308,16 +314,24 @@ protected:
         p.fillPath(path, bg);
 
         if (m_selected) {
-            p.setPen(QPen(m_isDark ? QColor(200, 200, 200) : QColor(0, 122, 204), 2));
+            p.setPen(QPen(QColor(0, 122, 204), 2));
             p.drawLine(8, height() - 1, width() - 8, height() - 1);
         }
 
-        p.setPen(m_isDark ? (m_selected ? Qt::white : QColor(170, 170, 170))
-                          : (m_selected ? Qt::black : QColor(80, 80, 80)));
+        p.setPen((m_theme == ThemeDark || m_theme == ThemeNord) ? (m_selected ? Qt::white : QColor(170, 170, 170))
+                                                               : (m_selected ? Qt::black : QColor(80, 80, 80)));
         QFont font = p.font();
         font.setPointSize(9);
         p.setFont(font);
-        QRect textRect(8, 0, width() - 28, height());
+
+        int textLeft = m_pinned ? 22 : 8;
+        int textWidth = m_pinned ? (width() - 28) : (width() - 28);
+        QRect textRect(textLeft, 0, textWidth, height());
+
+        if (m_pinned) {
+            p.drawText(6, height() / 2 + 4, "📌");
+        }
+
         p.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft,
             p.fontMetrics().elidedText(m_title, Qt::ElideRight, textRect.width()));
     }
@@ -327,11 +341,22 @@ protected:
             m_pressPos = event->globalPosition().toPoint();
             m_dragging = false;
             emit clicked();
+        } else if (event->button() == Qt::RightButton) {
+            QMenu contextMenu(this);
+            QAction *pinAction = contextMenu.addAction(m_pinned ? "📌 Unpin Tab" : "📌 Pin Tab");
+            QAction *closeUnpinnedAction = contextMenu.addAction("🧹 Close Unpinned Tabs");
+            QAction *closeAction = contextMenu.addAction("✕ Close Tab");
+
+            connect(pinAction, &QAction::triggered, this, [this]() { emit pinToggled(this); });
+            connect(closeUnpinnedAction, &QAction::triggered, this, [this]() { emit closeUnpinnedRequested(); });
+            connect(closeAction, &QAction::triggered, this, &BookTab::closeRequested);
+
+            contextMenu.exec(event->globalPosition().toPoint());
         }
     }
 
     void mouseMoveEvent(QMouseEvent *event) override {
-        if (!(event->buttons() & Qt::LeftButton)) return;
+        if (!(event->buttons() & Qt::LeftButton) || m_pinned) return;
         int dx = (event->globalPosition().toPoint() - m_pressPos).manhattanLength();
         if (!m_dragging && dx > 6) {
             m_dragging = true;
@@ -356,7 +381,8 @@ private:
     bool         m_selected;
     bool         m_hovered;
     bool         m_dragging;
-    bool         m_isDark;
+    bool         m_pinned;
+    ReadingTheme m_theme;
     QPoint       m_pressPos;
     QPushButton *closeBtn;
 };
@@ -368,7 +394,7 @@ class RecentCard : public QFrame {
     Q_OBJECT
 public:
     RecentCard(const QString &filePath, const QString &lastOpened, QWidget *parent = nullptr)
-        : QFrame(parent), m_filePath(filePath), m_isDark(true)
+        : QFrame(parent), m_filePath(filePath), m_theme(ThemeDark)
     {
         setFixedSize(220, 260);
         setCursor(Qt::PointingHandCursor);
@@ -402,14 +428,14 @@ public:
             emit deleteRequested(m_filePath);
         });
 
-        updateTheme(true);
+        updateTheme(ThemeDark);
     }
 
     QString filePath() const { return m_filePath; }
 
-    void updateTheme(bool isDark) {
-        m_isDark = isDark;
-        if (m_isDark) {
+    void updateTheme(ReadingTheme theme) {
+        m_theme = theme;
+        if (m_theme == ThemeDark || m_theme == ThemeNord) {
             setStyleSheet(
                 "QFrame#RecentCard { background-color: #222222; border: 1px solid #333333; border-radius: 8px; }"
                 "QFrame#RecentCard:hover { background-color: #2a2a2a; border-color: #007acc; }"
@@ -417,10 +443,6 @@ public:
             coverLabel->setStyleSheet("background-color: #2a2a2a; border-radius: 6px; color: #888888; font-size: 42px;");
             titleLabel->setStyleSheet("color: #ffffff;");
             dateLabel->setStyleSheet("color: #888888;");
-            deleteBtn->setStyleSheet(
-                "QPushButton { background: #333333; color: #aaaaaa; border-radius: 11px; border: none; font-size: 11px; }"
-                "QPushButton:hover { background: #e81123; color: white; }"
-            );
         } else {
             setStyleSheet(
                 "QFrame#RecentCard { background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; }"
@@ -429,11 +451,11 @@ public:
             coverLabel->setStyleSheet("background-color: #e9e9e9; border-radius: 6px; color: #555555; font-size: 42px;");
             titleLabel->setStyleSheet("color: #222222;");
             dateLabel->setStyleSheet("color: #666666;");
-            deleteBtn->setStyleSheet(
-                "QPushButton { background: #e0e0e0; color: #555555; border-radius: 11px; border: none; font-size: 11px; }"
-                "QPushButton:hover { background: #e81123; color: white; }"
-            );
         }
+        deleteBtn->setStyleSheet(
+            "QPushButton { background: #333333; color: #aaaaaa; border-radius: 11px; border: none; font-size: 11px; }"
+            "QPushButton:hover { background: #e81123; color: white; }"
+        );
     }
 
 signals:
@@ -453,7 +475,7 @@ private:
     QLabel      *titleLabel;
     QLabel      *dateLabel;
     QPushButton *deleteBtn;
-    bool         m_isDark;
+    ReadingTheme m_theme;
 };
 
 // ─────────────────────────────────────────────
@@ -462,30 +484,26 @@ private:
 class HomeButton : public QPushButton {
     Q_OBJECT
 public:
-    explicit HomeButton(QWidget *parent = nullptr) : QPushButton(parent), m_isDark(true) {
+    explicit HomeButton(QWidget *parent = nullptr) : QPushButton(parent), m_theme(ThemeDark) {
         setFixedSize(28, 28);
         setCursor(Qt::PointingHandCursor);
         updateStyle();
     }
 
-    void setTheme(bool isDark) {
-        m_isDark = isDark;
+    void setTheme(ReadingTheme theme) {
+        m_theme = theme;
         updateStyle();
         update();
     }
 
 private:
     void updateStyle() {
-        if (m_isDark) {
-            setStyleSheet(
-                "QPushButton { background: transparent; border: none; border-radius: 4px; }"
-                "QPushButton:hover { background-color: #2d2d2d; }"
-            );
+        if (m_theme == ThemeDark || m_theme == ThemeNord) {
+            setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; }"
+                          "QPushButton:hover { background-color: #2d2d2d; }");
         } else {
-            setStyleSheet(
-                "QPushButton { background: transparent; border: none; border-radius: 4px; }"
-                "QPushButton:hover { background-color: #d0d0d0; }"
-            );
+            setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; }"
+                          "QPushButton:hover { background-color: #d0d0d0; }");
         }
     }
 
@@ -494,7 +512,8 @@ protected:
         QPushButton::paintEvent(event);
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
-        p.setPen(QPen(m_isDark ? Qt::white : QColor(40, 40, 40), 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        bool isDark = (m_theme == ThemeDark || m_theme == ThemeNord);
+        p.setPen(QPen(isDark ? Qt::white : QColor(40, 40, 40), 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         p.setBrush(Qt::NoBrush);
         int cx = width() / 2, cy = height() / 2;
         QPainterPath path;
@@ -507,7 +526,7 @@ protected:
     }
 
 private:
-    bool m_isDark;
+    ReadingTheme m_theme;
 };
 
 // ─────────────────────────────────────────────
@@ -518,7 +537,7 @@ class ModernPDFReader : public QMainWindow {
 public:
     ModernPDFReader()
         : m_draggingWindow(false), m_currentIndex(-1),
-          m_draggedTab(nullptr), m_dragOffsetX(0), m_islandVisible(false), m_isDarkMode(true)
+          m_draggedTab(nullptr), m_dragOffsetX(0), m_islandVisible(false), m_currentTheme(ThemeDark)
     {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
         resize(1100, 800);
@@ -544,10 +563,19 @@ public:
         QAction *openAction = mainMenu->addAction("📁 Open PDF");
         connect(openAction, &QAction::triggered, this, &ModernPDFReader::openPDFFileDialog);
 
-        settingsMenu = mainMenu->addMenu("⚙️ Settings");
-        themeAction = settingsMenu->addAction("☀️ Light Mode");
-        connect(themeAction, &QAction::triggered, this, &ModernPDFReader::toggleTheme);
+        themeMenu = mainMenu->addMenu("🎨 Reading Theme");
+        
+        QAction *actLight = themeMenu->addAction("☀️ Light Theme");
+        QAction *actDark  = themeMenu->addAction("🌙 Dark Theme");
+        QAction *actSepia = themeMenu->addAction("📜 Sepia Theme (Classic)");
+        QAction *actNord  = themeMenu->addAction("🌲 Nord Theme (Calm)");
 
+        connect(actLight, &QAction::triggered, this, [this]() { setReadingTheme(ThemeLight); });
+        connect(actDark,  &QAction::triggered, this, [this]() { setReadingTheme(ThemeDark); });
+        connect(actSepia, &QAction::triggered, this, [this]() { setReadingTheme(ThemeSepia); });
+        connect(actNord,  &QAction::triggered, this, [this]() { setReadingTheme(ThemeNord); });
+
+        settingsMenu = mainMenu->addMenu("⚙️ Settings");
         QAction *dirAction = settingsMenu->addAction("📂 Default Open Directory");
         connect(dirAction, &QAction::triggered, this, &ModernPDFReader::selectDefaultDirectory);
 
@@ -571,6 +599,13 @@ public:
         tabsContainer->setFixedHeight(38);
         headerLayout->addWidget(tabsContainer, 1);
 
+        btnCloseUnpinned = new QPushButton("🧹", this);
+        btnCloseUnpinned->setFixedSize(28, 28);
+        btnCloseUnpinned->setToolTip("Close All Unpinned Tabs");
+        btnCloseUnpinned->setCursor(Qt::PointingHandCursor);
+        connect(btnCloseUnpinned, &QPushButton::clicked, this, &ModernPDFReader::closeAllUnpinnedTabs);
+        headerLayout->addWidget(btnCloseUnpinned);
+
         btnMin   = new QPushButton("–",  this);
         btnMax   = new QPushButton("⬜", this);
         btnClose = new QPushButton("✕",  this);
@@ -585,20 +620,16 @@ public:
 
         mainLayout->addWidget(header);
 
-        // ── منطقة العرض والصفحة الرئيسية ──────────────────────
+        // ── منطقة العرض ──
         stackedWidget = new QStackedWidget(this);
-        
         setupHomePage();
-
         stackedWidget->addWidget(homePageWidget);
         stackedWidget->setCurrentIndex(0);
         mainLayout->addWidget(stackedWidget, 1);
         setCentralWidget(centralWidget);
 
-        // ── الجزيرة الديناميكية ──
         dynamicIsland = new DynamicIsland(this);
         islandToggleBtn = new IslandToggleButton(this);
-
         dynamicIsland->hide();
         islandToggleBtn->hide();
 
@@ -615,7 +646,7 @@ private slots:
         homeLayout->setContentsMargins(40, 30, 40, 30);
 
         QHBoxLayout *recentHeader = new QHBoxLayout();
-        QLabel *recentTitle = new QLabel("Recent Books", homePageWidget);
+        recentTitle = new QLabel("Recent Books", homePageWidget);
         recentTitle->setFont(QFont("Segoe UI", 16, QFont::Bold));
 
         btnClearHistory = new QPushButton("🗑️ Clear History", homePageWidget);
@@ -647,110 +678,92 @@ private slots:
         QSettings settings("ModernPDFReader", "Settings");
         QString currentDir = settings.value("defaultDir", "").toString();
         QString dir = QFileDialog::getExistingDirectory(this, "Select Default Directory", currentDir);
-        if (!dir.isEmpty()) {
-            settings.setValue("defaultDir", dir);
-        }
+        if (!dir.isEmpty()) settings.setValue("defaultDir", dir);
     }
 
-    void toggleTheme() {
-        m_isDarkMode = !m_isDarkMode;
-        themeAction->setText(m_isDarkMode ? "☀️ Light Mode" : "🌙 Dark Mode");
+    void setReadingTheme(ReadingTheme theme) {
+        m_currentTheme = theme;
         applyTheme();
     }
 
     void applyTheme() {
-        if (m_isDarkMode) {
-            centralWidget->setStyleSheet("background-color: #141414; border: none;");
-            header->setStyleSheet("background-color: #1c1c1c; border: none;");
-            headerSep->setStyleSheet("background-color: #3a3a3a; border: none;");
-            
-            menuBtn->setStyleSheet(
-                "QPushButton { background: transparent; border: none; color: #ffffff; font-size: 18px; font-weight: bold; border-radius: 4px; }"
-                "QPushButton:hover { background-color: #2d2d2d; }"
-            );
-            mainMenu->setStyleSheet(
-                "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d; padding: 4px; font-size: 13px; }"
-                "QMenu::item { padding: 5px 20px; border-radius: 3px; }"
-                "QMenu::item:selected { background-color: #007acc; }"
-            );
-
-            QString btnStyle = "QPushButton { background: transparent; color: #aaaaaa; border: none; font-size: 12px; width: 38px; height: 28px; }"
-                               "QPushButton:hover { background-color: #2d2d2d; color: white; }";
-            btnMin->setStyleSheet(btnStyle);
-            btnMax->setStyleSheet(btnStyle);
-            btnClose->setStyleSheet("QPushButton { background: transparent; color: #aaaaaa; border: none; font-size: 12px; width: 38px; height: 28px; }"
-                                   "QPushButton:hover { background-color: #e81123; color: white; }");
-
-            btnClearHistory->setStyleSheet(
-                "QPushButton { background-color: #252526; color: #cccccc; border: 1px solid #3d3d3d; border-radius: 6px; font-size: 11px; }"
-                "QPushButton:hover { background-color: #e81123; color: white; border-color: #e81123; }"
-            );
-        } else {
-            centralWidget->setStyleSheet("background-color: #f3f3f3; border: none;");
-            header->setStyleSheet("background-color: #e5e5e5; border: none;");
-            headerSep->setStyleSheet("background-color: #cccccc; border: none;");
-            
-            menuBtn->setStyleSheet(
-                "QPushButton { background: transparent; border: none; color: #222222; font-size: 18px; font-weight: bold; border-radius: 4px; }"
-                "QPushButton:hover { background-color: #d0d0d0; }"
-            );
-            mainMenu->setStyleSheet(
-                "QMenu { background-color: #ffffff; color: #222222; border: 1px solid #cccccc; padding: 4px; font-size: 13px; }"
-                "QMenu::item { padding: 5px 20px; border-radius: 3px; }"
-                "QMenu::item:selected { background-color: #007acc; color: white; }"
-            );
-
-            QString btnStyle = "QPushButton { background: transparent; color: #444444; border: none; font-size: 12px; width: 38px; height: 28px; }"
-                               "QPushButton:hover { background-color: #d0d0d0; color: black; }";
-            btnMin->setStyleSheet(btnStyle);
-            btnMax->setStyleSheet(btnStyle);
-            btnClose->setStyleSheet("QPushButton { background: transparent; color: #444444; border: none; font-size: 12px; width: 38px; height: 28px; }"
-                                   "QPushButton:hover { background-color: #e81123; color: white; }");
-
-            btnClearHistory->setStyleSheet(
-                "QPushButton { background-color: #ffffff; color: #333333; border: 1px solid #cccccc; border-radius: 6px; font-size: 11px; }"
-                "QPushButton:hover { background-color: #e81123; color: white; border-color: #e81123; }"
-            );
+        QString bgMain, bgHeader, textColor;
+        switch (m_currentTheme) {
+            case ThemeLight: bgMain = "#f3f3f3"; bgHeader = "#e5e5e5"; textColor = "#222222"; break;
+            case ThemeDark:  bgMain = "#141414"; bgHeader = "#1c1c1c"; textColor = "#ffffff"; break;
+            case ThemeSepia: bgMain = "#fbf0d9"; bgHeader = "#eddcb9"; textColor = "#433222"; break;
+            case ThemeNord:  bgMain = "#2e3440"; bgHeader = "#3b4252"; textColor = "#eceff4"; break;
         }
 
-        btnHome->setTheme(m_isDarkMode);
-        dynamicIsland->updateThemeStyle(m_isDarkMode);
-        islandToggleBtn->updateTheme(m_isDarkMode);
+        centralWidget->setStyleSheet(QString("background-color: %1; border: none;").arg(bgMain));
+        header->setStyleSheet(QString("background-color: %1; border: none;").arg(bgHeader));
 
-        for (auto *tab : m_tabs) tab->setTheme(m_isDarkMode);
-        for (auto *card : m_recentCards) card->updateTheme(m_isDarkMode);
+        menuBtn->setStyleSheet(QString(
+            "QPushButton { background: transparent; border: none; color: %1; font-size: 18px; font-weight: bold; border-radius: 4px; }"
+            "QPushButton:hover { background-color: rgba(150, 150, 150, 0.2); }"
+        ).arg(textColor));
+
+        mainMenu->setStyleSheet(
+            "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d; padding: 4px; font-size: 13px; }"
+            "QMenu::item { padding: 5px 20px; border-radius: 3px; }"
+            "QMenu::item:selected { background-color: #007acc; }"
+        );
+
+        btnCloseUnpinned->setStyleSheet(QString(
+            "QPushButton { background: transparent; color: %1; border: none; font-size: 14px; border-radius: 4px; }"
+            "QPushButton:hover { background-color: rgba(150, 150, 150, 0.2); }"
+        ).arg(textColor));
+
+        QString btnStyle = QString("QPushButton { background: transparent; color: %1; border: none; font-size: 12px; width: 38px; height: 28px; }"
+                           "QPushButton:hover { background-color: rgba(150, 150, 150, 0.2); }").arg(textColor);
+        btnMin->setStyleSheet(btnStyle);
+        btnMax->setStyleSheet(btnStyle);
+        btnClose->setStyleSheet("QPushButton { background: transparent; color: #aaaaaa; border: none; font-size: 12px; width: 38px; height: 28px; }"
+                               "QPushButton:hover { background-color: #e81123; color: white; }");
+
+        recentTitle->setStyleSheet(QString("color: %1;").arg(textColor));
+        btnClearHistory->setStyleSheet(
+            "QPushButton { background-color: rgba(150, 150, 150, 0.15); color: #cccccc; border: 1px solid rgba(150, 150, 150, 0.3); border-radius: 6px; font-size: 11px; }"
+            "QPushButton:hover { background-color: #e81123; color: white; border-color: #e81123; }"
+        );
+
+        btnHome->setTheme(m_currentTheme);
+        dynamicIsland->updateThemeStyle(m_currentTheme);
+        islandToggleBtn->updateTheme(m_currentTheme);
+
+        for (auto *tab : m_tabs) tab->setTheme(m_currentTheme);
+        for (auto *card : m_recentCards) card->updateTheme(m_currentTheme);
     }
 
-   void loadRecentHistory() {
-    QSettings settings("ModernPDFReader", "History");
-    QStringList recentFiles = settings.value("recentFiles").toStringList();
+    void loadRecentHistory() {
+        QSettings settings("ModernPDFReader", "History");
+        QStringList recentFiles = settings.value("recentFiles").toStringList();
 
-    for (auto *card : m_recentCards) {
-        recentGrid->removeWidget(card);
-        card->deleteLater(); // تم استبدال delete بـ deleteLater للوقاية من الخروج
+        for (auto *card : m_recentCards) {
+            recentGrid->removeWidget(card);
+            card->deleteLater();
+        }
+        m_recentCards.clear();
+
+        int row = 0, col = 0;
+        for (const QString &path : recentFiles) {
+            if (!QFile::exists(path)) continue;
+
+            QString timeStr = settings.value("time_" + path, "Recently").toString();
+            RecentCard *card = new RecentCard(path, timeStr, cardsContainerWidget);
+            card->updateTheme(m_currentTheme);
+
+            connect(card, &RecentCard::clicked, this, &ModernPDFReader::openPDFFilePath, Qt::QueuedConnection);
+            connect(card, &RecentCard::deleteRequested, this, &ModernPDFReader::deleteRecentCard, Qt::QueuedConnection);
+
+            recentGrid->addWidget(card, row, col);
+            m_recentCards.append(card);
+
+            col++;
+            if (col >= 4) { col = 0; row++; }
+            if (m_recentCards.size() >= 8) break;
+        }
     }
-    m_recentCards.clear();
-
-    int row = 0, col = 0;
-    for (const QString &path : recentFiles) {
-        if (!QFile::exists(path)) continue;
-
-        QString timeStr = settings.value("time_" + path, "Recently").toString();
-        RecentCard *card = new RecentCard(path, timeStr, cardsContainerWidget);
-        card->updateTheme(m_isDarkMode);
-
-        // استخدام Qt::QueuedConnection يضمن تنفيذ الفتح بعد انتهاء حدث الضغط بسلام
-        connect(card, &RecentCard::clicked, this, &ModernPDFReader::openPDFFilePath, Qt::QueuedConnection);
-        connect(card, &RecentCard::deleteRequested, this, &ModernPDFReader::deleteRecentCard, Qt::QueuedConnection);
-
-        recentGrid->addWidget(card, row, col);
-        m_recentCards.append(card);
-
-        col++;
-        if (col >= 4) { col = 0; row++; }
-        if (m_recentCards.size() >= 8) break;
-    }
-}
 
     void saveToRecentHistory(const QString &filePath) {
         QSettings settings("ModernPDFReader", "History");
@@ -806,13 +819,13 @@ private slots:
 
         QLabel *label = new QLabel("MuPDF Engine view for: " + QFileInfo(filePath).fileName(), viewContainer);
         label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet(m_isDarkMode ? "color: white; font-size: 20px;" : "color: black; font-size: 20px;");
+        label->setStyleSheet("font-size: 20px;");
         layout->addWidget(label);
 
         stackedWidget->addWidget(viewContainer);
 
         BookTab *tab = new BookTab(QFileInfo(filePath).fileName(), filePath, tabsContainer);
-        tab->setTheme(m_isDarkMode);
+        tab->setTheme(m_currentTheme);
         tab->show();
 
         m_tabs.append(tab);
@@ -820,6 +833,8 @@ private slots:
 
         connect(tab, &BookTab::clicked, this, [this, tab]() { selectTab(m_tabs.indexOf(tab)); });
         connect(tab, &BookTab::closeRequested, this, [this, tab]() { closeTabByWidget(tab); });
+        connect(tab, &BookTab::pinToggled, this, &ModernPDFReader::togglePinTab);
+        connect(tab, &BookTab::closeUnpinnedRequested, this, &ModernPDFReader::closeAllUnpinnedTabs);
 
         connect(tab, &BookTab::dragStarted, this, &ModernPDFReader::onDragStarted);
         connect(tab, &BookTab::dragMoved, this, &ModernPDFReader::onDragMoved);
@@ -827,6 +842,35 @@ private slots:
 
         repositionTabs(false);
         selectTab(m_tabs.size() - 1);
+    }
+
+    void togglePinTab(BookTab *tab) {
+        tab->setPinned(!tab->isPinned());
+        
+        // إعادة ترتيب التبويبات بحيث تكون المثبتة في اليسار
+        m_tabs.removeAll(tab);
+        int insertIndex = 0;
+        if (tab->isPinned()) {
+            for (int i = 0; i < m_tabs.size(); ++i) {
+                if (m_tabs[i]->isPinned()) insertIndex++;
+            }
+        } else {
+            insertIndex = m_tabs.size();
+        }
+        m_tabs.insert(insertIndex, tab);
+
+        repositionTabs(true);
+    }
+
+    void closeAllUnpinnedTabs() {
+        QVector<BookTab*> tabsToClose;
+        for (auto *tab : m_tabs) {
+            if (!tab->isPinned()) tabsToClose.append(tab);
+        }
+
+        for (auto *tab : tabsToClose) {
+            closeTabByWidget(tab);
+        }
     }
 
     void selectTab(int index) {
@@ -899,7 +943,7 @@ private slots:
         int newIndex = qBound(0, centerX / step, m_tabs.size() - 1);
         int oldIndex = m_tabs.indexOf(tab);
 
-        if (newIndex != oldIndex) {
+        if (newIndex != oldIndex && !m_tabs[newIndex]->isPinned()) {
             m_tabs.removeAt(oldIndex);
             m_views.insert(newIndex, m_views.takeAt(oldIndex));
             m_tabs.insert(newIndex, tab);
@@ -1025,13 +1069,15 @@ private:
     QWidget                   *homePageWidget;
     QWidget                   *cardsContainerWidget;
     QGridLayout               *recentGrid;
+    QLabel                    *recentTitle;
     QPushButton               *btnClearHistory;
     QWidget                   *tabsContainer;
     QPushButton               *menuBtn;
     QMenu                     *mainMenu;
+    QMenu                     *themeMenu;
     QMenu                     *settingsMenu;
-    QAction                   *themeAction;
     HomeButton                *btnHome;
+    QPushButton               *btnCloseUnpinned;
     QPushButton               *btnMin;
     QPushButton               *btnMax;
     QPushButton               *btnClose;
@@ -1039,7 +1085,7 @@ private:
     IslandToggleButton        *islandToggleBtn;
     
     bool                       m_islandVisible;
-    bool                       m_isDarkMode;
+    ReadingTheme               m_currentTheme;
 
     QVector<BookTab*>          m_tabs;
     QVector<QWidget*>          m_views;
@@ -1058,5 +1104,4 @@ int main(int argc, char *argv[]) {
     return app.exec();
 }
 
-// السطر السحري لحل مشكلة Qt AUTOMOC في ملفات الكود الواحد
 #include "main.moc"

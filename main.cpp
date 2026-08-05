@@ -1,4 +1,4 @@
-// v19 - Smooth Scrolling Default, Fixed Crashes, Wider Cards, Dim Button & Default Folder Setting
+// main.cpp - Fixed GitHub Actions CMake AUTOMOC & C2039 Build Errors
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -29,7 +29,7 @@
 class IslandToggleButton : public QPushButton {
     Q_OBJECT
 public:
-    IslandToggleButton(QWidget *parent = nullptr) 
+    explicit IslandToggleButton(QWidget *parent = nullptr) 
         : QPushButton(parent), m_collapsed(false), m_isDark(true)
     {
         setFixedSize(28, 12);
@@ -42,7 +42,9 @@ public:
         update();
     }
 
-    bool isCollapsed() const { return m_collapsed; }
+    bool isCollapsed() const { 
+        return m_collapsed; 
+    }
 
     void updateTheme(bool isDark) {
         m_isDark = isDark;
@@ -102,7 +104,7 @@ class DynamicIsland : public QWidget {
 public:
     enum ViewMode { Continuous = 0, SinglePage = 1, TwoPages = 2 };
 
-    DynamicIsland(QWidget *parent = nullptr) 
+    explicit DynamicIsland(QWidget *parent = nullptr) 
         : QWidget(parent), m_currentViewMode(Continuous), m_rotationAngle(0), m_nightMode(false), m_dimMode(false) 
     {
         setFixedHeight(32);
@@ -169,7 +171,6 @@ public:
         connect(btnNightMode, &QPushButton::clicked, this, &DynamicIsland::toggleNightMode);
         layout->addWidget(btnNightMode);
 
-        // زر التعتيم بجانب زر القمر
         btnDimMode = new QPushButton("🔆", this);
         btnDimMode->setFixedSize(24, 24);
         btnDimMode->setToolTip("Dim Background / Focus Mode");
@@ -461,7 +462,7 @@ private:
 class HomeButton : public QPushButton {
     Q_OBJECT
 public:
-    HomeButton(QWidget *parent = nullptr) : QPushButton(parent), m_isDark(true) {
+    explicit HomeButton(QWidget *parent = nullptr) : QPushButton(parent), m_isDark(true) {
         setFixedSize(28, 28);
         setCursor(Qt::PointingHandCursor);
         updateStyle();
@@ -547,7 +548,6 @@ public:
         themeAction = settingsMenu->addAction("☀️ Light Mode");
         connect(themeAction, &QAction::triggered, this, &ModernPDFReader::toggleTheme);
 
-        // إضافة ميزة تحديد المجلد الافتراضي
         QAction *dirAction = settingsMenu->addAction("📂 Default Open Directory");
         connect(dirAction, &QAction::triggered, this, &ModernPDFReader::selectDefaultDirectory);
 
@@ -628,12 +628,10 @@ private slots:
         recentHeader->addWidget(btnClearHistory);
         homeLayout->addLayout(recentHeader);
 
-        // منطقة التمرير الناعم للبطاقات
         QScrollArea *scrollArea = new QScrollArea(homePageWidget);
         scrollArea->setWidgetResizable(true);
         scrollArea->setFrameShape(QFrame::NoFrame);
         
-        // تفعيل Smooth Scrolling كوضع افتراضي
         QScroller::grabGesture(scrollArea->viewport(), QScroller::LeftMouseButtonGesture);
 
         cardsContainerWidget = new QWidget(scrollArea);
@@ -792,7 +790,6 @@ private slots:
     }
 
     void openPDFFilePath(const QString &filePath) {
-        // إذا كان الكتاب مفتوحاً مسبقاً، تحول إلى تبويبه فوراً بدون مشاكل خروج
         for (int i = 0; i < m_tabs.size(); ++i) {
             if (m_tabs[i]->filePath() == filePath) {
                 selectTab(i);
@@ -802,7 +799,6 @@ private slots:
 
         saveToRecentHistory(filePath);
 
-        // إنشاء محتوى تبويبة العرض بأمان كامل
         QWidget *viewContainer = new QWidget(this);
         QVBoxLayout *layout = new QVBoxLayout(viewContainer);
         layout->setContentsMargins(0, 0, 0, 0);
@@ -1042,4 +1038,24 @@ private:
     IslandToggleButton        *islandToggleBtn;
     
     bool                       m_islandVisible;
-    bool                       m
+    bool                       m_isDarkMode;
+
+    QVector<BookTab*>          m_tabs;
+    QVector<QWidget*>          m_views;
+    QVector<RecentCard*>       m_recentCards;
+    int                        m_currentIndex;
+    QPoint                     m_windowDragStart;
+    bool                       m_draggingWindow;
+    BookTab                   *m_draggedTab;
+    int                        m_dragOffsetX;
+};
+
+int main(int argc, char *argv[]) {
+    QApplication app(argc, argv);
+    ModernPDFReader viewer;
+    viewer.show();
+    return app.exec();
+}
+
+// السطر السحري لحل مشكلة Qt AUTOMOC في ملفات الكود الواحد
+#include "main.moc"

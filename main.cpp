@@ -1,4 +1,4 @@
-// v13 - Modern Dynamic Island UI
+// v14 - Dynamic Island with Page Layout, Rotation & Night Mode
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -19,7 +19,7 @@
 #include <QEasingCurve>
 
 // ─────────────────────────────────────────────
-// 1. زر السهم الفخم لطي وإظهار الجزيرة الديناميكية
+// 1. زر السهم لطي وإظهار الجزيرة الديناميكية
 // ─────────────────────────────────────────────
 class IslandToggleButton : public QPushButton {
     Q_OBJECT
@@ -27,7 +27,7 @@ public:
     IslandToggleButton(QWidget *parent = nullptr) 
         : QPushButton(parent), m_collapsed(false) 
     {
-        setFixedSize(26, 12);
+        setFixedSize(28, 12);
         setCursor(Qt::PointingHandCursor);
         setStyleSheet(
             "QPushButton { background: #252526; border: 1px solid #3d3d3d; border-top: none; "
@@ -55,12 +55,10 @@ protected:
 
         QPainterPath path;
         if (m_collapsed) {
-            // سهم متجه لأسفل (إظهار)
             path.moveTo(cx - 4, cy - 2);
             path.lineTo(cx, cy + 2);
             path.lineTo(cx + 4, cy - 2);
         } else {
-            // سهم متجه للأعلى (إخفاء)
             path.moveTo(cx - 4, cy + 2);
             path.lineTo(cx, cy - 2);
             path.lineTo(cx + 4, cy + 2);
@@ -78,7 +76,11 @@ private:
 class DynamicIsland : public QWidget {
     Q_OBJECT
 public:
-    DynamicIsland(QWidget *parent = nullptr) : QWidget(parent) {
+    enum ViewMode { Continuous = 0, SinglePage = 1, TwoPages = 2 };
+
+    DynamicIsland(QWidget *parent = nullptr) 
+        : QWidget(parent), m_currentViewMode(Continuous), m_rotationAngle(0), m_nightMode(false) 
+    {
         setFixedHeight(32);
         setStyleSheet(
             "QWidget#IslandBody { "
@@ -87,14 +89,14 @@ public:
             "  border-radius: 16px; "
             "}"
             "QLabel { color: #cccccc; font-size: 11px; font-weight: bold; font-family: 'Segoe UI'; }"
-            "QPushButton { background: transparent; border: none; color: #aaaaaa; font-size: 11px; font-weight: bold; border-radius: 10px; }"
+            "QPushButton { background: transparent; border: none; color: #aaaaaa; font-size: 12px; font-weight: bold; border-radius: 8px; padding: 2px 5px; }"
             "QPushButton:hover { background-color: #333333; color: white; }"
         );
 
         setObjectName("IslandBody");
 
         QHBoxLayout *layout = new QHBoxLayout(this);
-        layout->setContentsMargins(12, 0, 12, 0);
+        layout->setContentsMargins(10, 0, 10, 0);
         layout->setSpacing(6);
 
         // --- قسم أزرار الصفحات العمودية ---
@@ -108,7 +110,7 @@ public:
         btnUp->setFixedSize(16, 12);
         btnDown->setFixedSize(16, 12);
         
-        QString arrowStyle = "QPushButton { font-size: 8px; color: #888888; }"
+        QString arrowStyle = "QPushButton { font-size: 8px; color: #888888; padding:0px; }"
                             "QPushButton:hover { color: #007acc; background: transparent; }";
         btnUp->setStyleSheet(arrowStyle);
         btnDown->setStyleSheet(arrowStyle);
@@ -121,12 +123,7 @@ public:
         pageLabel = new QLabel("1 / 10", this);
         layout->addWidget(pageLabel);
 
-        // فاصل راسي
-        QFrame *sep = new QFrame(this);
-        sep->setFrameShape(QFrame::VLine);
-        sep->setFixedSize(1, 14);
-        sep->setStyleSheet("background-color: #383838; border: none;");
-        layout->addWidget(sep);
+        layout->addWidget(createSeparator());
 
         // --- قسم الزوم ---
         QPushButton *btnZoomOut = new QPushButton("—", this);
@@ -140,11 +137,89 @@ public:
         layout->addWidget(zoomLabel);
         layout->addWidget(btnZoomIn);
 
+        layout->addWidget(createSeparator());
+
+        // --- 1. زر نمط عرض الصفحات (عادي -> صفحة -> صفحتين) ---
+        btnViewMode = new QPushButton("📜 Scroll", this);
+        btnViewMode->setToolTip("Change Page View Mode");
+        connect(btnViewMode, &QPushButton::clicked, this, &DynamicIsland::toggleViewMode);
+        layout->addWidget(btnViewMode);
+
+        // --- 2. زر التدوير بجهة واحدة (90 درجة باستمرار) ---
+        btnRotate = new QPushButton("🔄", this);
+        btnRotate->setFixedSize(24, 24);
+        btnRotate->setToolTip("Rotate Page Clockwise (90°)");
+        connect(btnRotate, &QPushButton::clicked, this, &DynamicIsland::rotateClockwise);
+        layout->addWidget(btnRotate);
+
+        // --- 3. زر القراءة الليلية ---
+        btnNightMode = new QPushButton("🌙", this);
+        btnNightMode->setFixedSize(24, 24);
+        btnNightMode->setToolTip("Toggle Night Reading Mode");
+        connect(btnNightMode, &QPushButton::clicked, this, &DynamicIsland::toggleNightMode);
+        layout->addWidget(btnNightMode);
+
         adjustSize();
     }
 
     QLabel *pageLabel;
     QLabel *zoomLabel;
+
+signals:
+    void viewModeChanged(DynamicIsland::ViewMode mode);
+    void rotationChanged(int angle);
+    void nightModeToggled(bool enabled);
+
+private slots:
+    void toggleViewMode() {
+        m_currentViewMode = static_cast<ViewMode>((m_currentViewMode + 1) % 3);
+        switch (m_currentViewMode) {
+            case Continuous:
+                btnViewMode->setText("📜 Scroll");
+                break;
+            case SinglePage:
+                btnViewMode->setText("📄 1-Page");
+                break;
+            case TwoPages:
+                btnViewMode->setText("📖 2-Pages");
+                break;
+        }
+        adjustSize();
+        emit viewModeChanged(m_currentViewMode);
+    }
+
+    void rotateClockwise() {
+        m_rotationAngle = (m_rotationAngle + 90) % 360;
+        emit rotationChanged(m_rotationAngle);
+    }
+
+    void toggleNightMode() {
+        m_nightMode = !m_nightMode;
+        if (m_nightMode) {
+            btnNightMode->setStyleSheet("QPushButton { background-color: #007acc; color: white; border-radius: 8px; }");
+        } else {
+            btnNightMode->setStyleSheet("QPushButton { background: transparent; color: #aaaaaa; border-radius: 8px; }"
+                                        "QPushButton:hover { background-color: #333333; color: white; }");
+        }
+        emit nightModeToggled(m_nightMode);
+    }
+
+private:
+    QFrame* createSeparator() {
+        QFrame *sep = new QFrame(this);
+        sep->setFrameShape(QFrame::VLine);
+        sep->setFixedSize(1, 14);
+        sep->setStyleSheet("background-color: #383838; border: none;");
+        return sep;
+    }
+
+    QPushButton *btnViewMode;
+    QPushButton *btnRotate;
+    QPushButton *btnNightMode;
+
+    ViewMode m_currentViewMode;
+    int      m_rotationAngle;
+    bool     m_nightMode;
 };
 
 // ─────────────────────────────────────────────
@@ -258,7 +333,7 @@ private:
 };
 
 // ─────────────────────────────────────────────
-// 4. زر المنزل المرسوم يدوياً
+// 4. زر المنزل
 // ─────────────────────────────────────────────
 class HomeButton : public QPushButton {
     Q_OBJECT
@@ -412,7 +487,7 @@ public:
         mainLayout->addWidget(stackedWidget, 1);
         setCentralWidget(central);
 
-        // ── إنشاء الجزيرة الديناميكية وزر التبديل فوق العرض ──
+        // ── إنشاء الجزيرة الديناميكية وزر التبديل ──
         dynamicIsland = new DynamicIsland(this);
         islandToggleBtn = new IslandToggleButton(this);
 

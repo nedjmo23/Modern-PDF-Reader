@@ -1,4 +1,4 @@
-// v14 - Dynamic Island with Page Layout, Rotation & Night Mode
+// v15 - Header Menu with Settings & Dynamic Theme Switching (Light/Dark)
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -29,11 +29,7 @@ public:
     {
         setFixedSize(28, 12);
         setCursor(Qt::PointingHandCursor);
-        setStyleSheet(
-            "QPushButton { background: #252526; border: 1px solid #3d3d3d; border-top: none; "
-            "border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; }"
-            "QPushButton:hover { background-color: #007acc; border-color: #007acc; }"
-        );
+        updateStyle();
     }
 
     void setCollapsed(bool collapsed) {
@@ -41,14 +37,34 @@ public:
         update();
     }
 
-    bool isCollapsed() const { return m_collapsed; }
+    void updateTheme(bool isDark) {
+        m_isDark = isDark;
+        updateStyle();
+    }
+
+private:
+    void updateStyle() {
+        if (m_isDark) {
+            setStyleSheet(
+                "QPushButton { background: #252526; border: 1px solid #3d3d3d; border-top: none; "
+                "border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; }"
+                "QPushButton:hover { background-color: #007acc; border-color: #007acc; }"
+            );
+        } else {
+            setStyleSheet(
+                "QPushButton { background: #e1e1e1; border: 1px solid #cccccc; border-top: none; "
+                "border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; }"
+                "QPushButton:hover { background-color: #007acc; border-color: #007acc; }"
+            );
+        }
+    }
 
 protected:
     void paintEvent(QPaintEvent *event) override {
         QPushButton::paintEvent(event);
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
-        p.setPen(QPen(Qt::white, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setPen(QPen(m_isDark ? Qt::white : QColor(30, 30, 30), 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
 
         int cx = width() / 2;
         int cy = height() / 2;
@@ -68,6 +84,7 @@ protected:
 
 private:
     bool m_collapsed;
+    bool m_isDark = true;
 };
 
 // ─────────────────────────────────────────────
@@ -82,24 +99,14 @@ public:
         : QWidget(parent), m_currentViewMode(Continuous), m_rotationAngle(0), m_nightMode(false) 
     {
         setFixedHeight(32);
-        setStyleSheet(
-            "QWidget#IslandBody { "
-            "  background-color: #222222; "
-            "  border: 1px solid #383838; "
-            "  border-radius: 16px; "
-            "}"
-            "QLabel { color: #cccccc; font-size: 11px; font-weight: bold; font-family: 'Segoe UI'; }"
-            "QPushButton { background: transparent; border: none; color: #aaaaaa; font-size: 12px; font-weight: bold; border-radius: 8px; padding: 2px 5px; }"
-            "QPushButton:hover { background-color: #333333; color: white; }"
-        );
-
         setObjectName("IslandBody");
+        updateThemeStyle(true);
 
         QHBoxLayout *layout = new QHBoxLayout(this);
         layout->setContentsMargins(10, 0, 10, 0);
         layout->setSpacing(6);
 
-        // --- قسم أزرار الصفحات العمودية ---
+        // أزرار التصفح
         QWidget *navContainer = new QWidget(this);
         QVBoxLayout *navLayout = new QVBoxLayout(navContainer);
         navLayout->setContentsMargins(0, 2, 0, 2);
@@ -119,13 +126,13 @@ public:
         navLayout->addWidget(btnDown);
         layout->addWidget(navContainer);
 
-        // مؤشر الصفحات
         pageLabel = new QLabel("1 / 10", this);
         layout->addWidget(pageLabel);
 
-        layout->addWidget(createSeparator());
+        sep1 = createSeparator();
+        layout->addWidget(sep1);
 
-        // --- قسم الزوم ---
+        // أزرار الزوم
         QPushButton *btnZoomOut = new QPushButton("—", this);
         QPushButton *btnZoomIn = new QPushButton("+", this);
         btnZoomOut->setFixedSize(20, 20);
@@ -137,22 +144,23 @@ public:
         layout->addWidget(zoomLabel);
         layout->addWidget(btnZoomIn);
 
-        layout->addWidget(createSeparator());
+        sep2 = createSeparator();
+        layout->addWidget(sep2);
 
-        // --- 1. زر نمط عرض الصفحات (عادي -> صفحة -> صفحتين) ---
+        // زر عرض الصفحات
         btnViewMode = new QPushButton("📜 Scroll", this);
         btnViewMode->setToolTip("Change Page View Mode");
         connect(btnViewMode, &QPushButton::clicked, this, &DynamicIsland::toggleViewMode);
         layout->addWidget(btnViewMode);
 
-        // --- 2. زر التدوير بجهة واحدة (90 درجة باستمرار) ---
+        // زر التدوير
         btnRotate = new QPushButton("🔄", this);
         btnRotate->setFixedSize(24, 24);
         btnRotate->setToolTip("Rotate Page Clockwise (90°)");
         connect(btnRotate, &QPushButton::clicked, this, &DynamicIsland::rotateClockwise);
         layout->addWidget(btnRotate);
 
-        // --- 3. زر القراءة الليلية ---
+        // زر القراءة الليلية
         btnNightMode = new QPushButton("🌙", this);
         btnNightMode->setFixedSize(24, 24);
         btnNightMode->setToolTip("Toggle Night Reading Mode");
@@ -162,35 +170,40 @@ public:
         adjustSize();
     }
 
+    void updateThemeStyle(bool isDark) {
+        if (isDark) {
+            setStyleSheet(
+                "QWidget#IslandBody { background-color: #222222; border: 1px solid #383838; border-radius: 16px; }"
+                "QLabel { color: #cccccc; font-size: 11px; font-weight: bold; font-family: 'Segoe UI'; }"
+                "QPushButton { background: transparent; border: none; color: #aaaaaa; font-size: 12px; font-weight: bold; border-radius: 8px; padding: 2px 5px; }"
+                "QPushButton:hover { background-color: #333333; color: white; }"
+            );
+        } else {
+            setStyleSheet(
+                "QWidget#IslandBody { background-color: #ffffff; border: 1px solid #d0d0d0; border-radius: 16px; }"
+                "QLabel { color: #333333; font-size: 11px; font-weight: bold; font-family: 'Segoe UI'; }"
+                "QPushButton { background: transparent; border: none; color: #555555; font-size: 12px; font-weight: bold; border-radius: 8px; padding: 2px 5px; }"
+                "QPushButton:hover { background-color: #e5e5e5; color: black; }"
+            );
+        }
+    }
+
     QLabel *pageLabel;
     QLabel *zoomLabel;
-
-signals:
-    void viewModeChanged(DynamicIsland::ViewMode mode);
-    void rotationChanged(int angle);
-    void nightModeToggled(bool enabled);
 
 private slots:
     void toggleViewMode() {
         m_currentViewMode = static_cast<ViewMode>((m_currentViewMode + 1) % 3);
         switch (m_currentViewMode) {
-            case Continuous:
-                btnViewMode->setText("📜 Scroll");
-                break;
-            case SinglePage:
-                btnViewMode->setText("📄 1-Page");
-                break;
-            case TwoPages:
-                btnViewMode->setText("📖 2-Pages");
-                break;
+            case Continuous: btnViewMode->setText("📜 Scroll"); break;
+            case SinglePage: btnViewMode->setText("📄 1-Page"); break;
+            case TwoPages:  btnViewMode->setText("📖 2-Pages"); break;
         }
         adjustSize();
-        emit viewModeChanged(m_currentViewMode);
     }
 
     void rotateClockwise() {
         m_rotationAngle = (m_rotationAngle + 90) % 360;
-        emit rotationChanged(m_rotationAngle);
     }
 
     void toggleNightMode() {
@@ -198,10 +211,8 @@ private slots:
         if (m_nightMode) {
             btnNightMode->setStyleSheet("QPushButton { background-color: #007acc; color: white; border-radius: 8px; }");
         } else {
-            btnNightMode->setStyleSheet("QPushButton { background: transparent; color: #aaaaaa; border-radius: 8px; }"
-                                        "QPushButton:hover { background-color: #333333; color: white; }");
+            btnNightMode->setStyleSheet("");
         }
-        emit nightModeToggled(m_nightMode);
     }
 
 private:
@@ -213,6 +224,8 @@ private:
         return sep;
     }
 
+    QFrame      *sep1;
+    QFrame      *sep2;
     QPushButton *btnViewMode;
     QPushButton *btnRotate;
     QPushButton *btnNightMode;
@@ -223,7 +236,7 @@ private:
 };
 
 // ─────────────────────────────────────────────
-// 3. تبويبة كتاب مع دعم السحب الانسيابي
+// 3. تبويبة كتاب مع تخصيص ثيم الألوان
 // ─────────────────────────────────────────────
 class BookTab : public QWidget {
     Q_OBJECT
@@ -235,7 +248,7 @@ public:
 
     BookTab(const QString &title, QWidget *parent = nullptr)
         : QWidget(parent), m_title(title), m_selected(false),
-          m_hovered(false), m_dragging(false)
+          m_hovered(false), m_dragging(false), m_isDark(true)
     {
         setFixedSize(TAB_WIDTH, TAB_HEIGHT);
         setCursor(Qt::PointingHandCursor);
@@ -251,7 +264,7 @@ public:
     }
 
     void setSelected(bool s) { m_selected = s; update(); }
-    bool isSelected() const  { return m_selected; }
+    void setTheme(bool isDark) { m_isDark = isDark; update(); }
 
     void stopAnimations() {
         for (QObject *child : children()) {
@@ -272,20 +285,24 @@ protected:
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
 
-        QColor bg = m_selected
-            ? QColor(30, 30, 30)
-            : (m_hovered ? QColor(50, 50, 50) : QColor(38, 38, 38));
+        QColor bg;
+        if (m_isDark) {
+            bg = m_selected ? QColor(30, 30, 30) : (m_hovered ? QColor(50, 50, 50) : QColor(38, 38, 38));
+        } else {
+            bg = m_selected ? QColor(255, 255, 255) : (m_hovered ? QColor(225, 225, 225) : QColor(210, 210, 210));
+        }
 
         QPainterPath path;
         path.addRoundedRect(1, 1, width() - 2, height() - 1, 7, 7);
         p.fillPath(path, bg);
 
         if (m_selected) {
-            p.setPen(QPen(QColor(200, 200, 200), 2));
+            p.setPen(QPen(m_isDark ? QColor(200, 200, 200) : QColor(0, 122, 204), 2));
             p.drawLine(8, height() - 1, width() - 8, height() - 1);
         }
 
-        p.setPen(m_selected ? Qt::white : QColor(170, 170, 170));
+        p.setPen(m_isDark ? (m_selected ? Qt::white : QColor(170, 170, 170))
+                          : (m_selected ? Qt::black : QColor(80, 80, 80)));
         QFont font = p.font();
         font.setPointSize(9);
         p.setFont(font);
@@ -328,6 +345,7 @@ private:
     bool         m_selected;
     bool         m_hovered;
     bool         m_dragging;
+    bool         m_isDark;
     QPoint       m_pressPos;
     QPushButton *closeBtn;
 };
@@ -338,21 +356,39 @@ private:
 class HomeButton : public QPushButton {
     Q_OBJECT
 public:
-    HomeButton(QWidget *parent = nullptr) : QPushButton(parent) {
+    HomeButton(QWidget *parent = nullptr) : QPushButton(parent), m_isDark(true) {
         setFixedSize(28, 28);
         setCursor(Qt::PointingHandCursor);
-        setStyleSheet(
-            "QPushButton { background: transparent; border: none; border-radius: 4px; }"
-            "QPushButton:hover { background-color: #2d2d2d; }"
-            "QPushButton:pressed { background-color: #007acc; }"
-        );
+        updateStyle();
     }
+
+    void setTheme(bool isDark) {
+        m_isDark = isDark;
+        updateStyle();
+        update();
+    }
+
+private:
+    void updateStyle() {
+        if (m_isDark) {
+            setStyleSheet(
+                "QPushButton { background: transparent; border: none; border-radius: 4px; }"
+                "QPushButton:hover { background-color: #2d2d2d; }"
+            );
+        } else {
+            setStyleSheet(
+                "QPushButton { background: transparent; border: none; border-radius: 4px; }"
+                "QPushButton:hover { background-color: #d0d0d0; }"
+            );
+        }
+    }
+
 protected:
     void paintEvent(QPaintEvent *event) override {
         QPushButton::paintEvent(event);
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
-        p.setPen(QPen(Qt::white, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.setPen(QPen(m_isDark ? Qt::white : QColor(40, 40, 40), 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         p.setBrush(Qt::NoBrush);
         int cx = width() / 2, cy = height() / 2;
         QPainterPath path;
@@ -363,104 +399,83 @@ protected:
         path.lineTo(cx+2, cy+3); path.lineTo(cx+2, cy+7);
         p.drawPath(path);
     }
+
+private:
+    bool m_isDark;
 };
 
 // ─────────────────────────────────────────────
-// 5. النافذة الرئيسية
+// 5. النافذة الرئيسية مع التبديل الديناميكي للثيم
 // ─────────────────────────────────────────────
 class ModernPDFReader : public QMainWindow {
     Q_OBJECT
 public:
     ModernPDFReader()
         : m_draggingWindow(false), m_currentIndex(-1),
-          m_draggedTab(nullptr), m_dragOffsetX(0), m_islandVisible(false)
+          m_draggedTab(nullptr), m_dragOffsetX(0), m_islandVisible(false), m_isDarkMode(true)
     {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
         resize(1100, 800);
         setMinimumSize(700, 500);
 
-        QPalette pal;
-        pal.setColor(QPalette::Window,     QColor(20, 20, 20));
-        pal.setColor(QPalette::WindowText, Qt::white);
-        pal.setColor(QPalette::Base,       QColor(20, 20, 20));
-        pal.setColor(QPalette::Text,       Qt::white);
-        setPalette(pal);
-
-        QWidget *central = new QWidget(this);
-        central->setStyleSheet("background-color: #141414; border: none;");
-        QVBoxLayout *mainLayout = new QVBoxLayout(central);
+        centralWidget = new QWidget(this);
+        QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
         mainLayout->setContentsMargins(0, 0, 0, 0);
         mainLayout->setSpacing(0);
 
         // ── الشريط العلوي ─────────────────────────────────────
-        QWidget *header = new QWidget(this);
+        header = new QWidget(this);
         header->setFixedHeight(38);
-        header->setStyleSheet("background-color: #1c1c1c; border: none;");
         QHBoxLayout *headerLayout = new QHBoxLayout(header);
         headerLayout->setContentsMargins(6, 4, 4, 0);
         headerLayout->setSpacing(4);
 
-        // زر النقاط الثلاث
+        // زر النقاط الثلاث والقائمة
         menuBtn = new QPushButton("⋮", this);
         menuBtn->setFixedSize(28, 28);
         menuBtn->setCursor(Qt::PointingHandCursor);
-        menuBtn->setStyleSheet(
-            "QPushButton { background: transparent; border: none; color: #ffffff;"
-            " font-size: 18px; font-weight: bold; border-radius: 4px; }"
-            "QPushButton:hover { background-color: #2d2d2d; }"
-        );
-        QMenu *fileMenu = new QMenu(this);
-        fileMenu->setStyleSheet(
-            "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d;"
-            " padding: 4px; font-size: 13px; }"
-            "QMenu::item { padding: 5px 20px; border-radius: 3px; }"
-            "QMenu::item:selected { background-color: #007acc; }"
-        );
-        QAction *openAction = fileMenu->addAction("Open PDF");
+
+        mainMenu = new QMenu(this);
+        QAction *openAction = mainMenu->addAction("📁 Open PDF");
         connect(openAction, &QAction::triggered, this, &ModernPDFReader::openPDF);
-        connect(menuBtn, &QPushButton::clicked, this, [this, fileMenu]() {
-            fileMenu->exec(menuBtn->mapToGlobal(QPoint(0, menuBtn->height())));
+
+        // إضافة قائمة الإعدادات الفرعية (Settings)
+        settingsMenu = mainMenu->addMenu("⚙️ Settings");
+        themeAction = settingsMenu->addAction("☀️ Light Mode");
+        connect(themeAction, &QAction::triggered, this, &ModernPDFReader::toggleTheme);
+
+        connect(menuBtn, &QPushButton::clicked, this, [this]() {
+            mainMenu->exec(menuBtn->mapToGlobal(QPoint(0, menuBtn->height())));
         });
         headerLayout->addWidget(menuBtn);
 
         // زر المنزل
-        HomeButton *btnHome = new HomeButton(this);
+        btnHome = new HomeButton(this);
         connect(btnHome, &QPushButton::clicked, this, &ModernPDFReader::showHomePage);
         headerLayout->addWidget(btnHome);
 
         // خط فاصل
-        QFrame *sep = new QFrame(this);
-        sep->setFrameShape(QFrame::VLine);
-        sep->setFixedSize(2, 22);
-        sep->setStyleSheet("background-color: #3a3a3a; border: none;");
-        headerLayout->addWidget(sep);
+        headerSep = new QFrame(this);
+        headerSep->setFrameShape(QFrame::VLine);
+        headerSep->setFixedSize(2, 22);
+        headerLayout->addWidget(headerSep);
         headerLayout->addSpacing(2);
 
         // منطقة التبويبات
         tabsContainer = new QWidget(this);
-        tabsContainer->setStyleSheet("background: transparent;");
         tabsContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         tabsContainer->setFixedHeight(38);
         headerLayout->addWidget(tabsContainer, 1);
 
-        // أزرار النافذة
-        QString btnStyle =
-            "QPushButton { background: transparent; color: #aaaaaa; border: none;"
-            " font-size: 12px; width: 38px; height: 28px; }"
-            "QPushButton:hover { background-color: #2d2d2d; color: white; }";
-        QPushButton *btnMin   = new QPushButton("–",  this);
-        QPushButton *btnMax   = new QPushButton("⬜", this);
-        QPushButton *btnClose = new QPushButton("✕",  this);
-        btnMin->setStyleSheet(btnStyle);
-        btnMax->setStyleSheet(btnStyle);
-        btnClose->setStyleSheet(
-            "QPushButton { background: transparent; color: #aaaaaa; border: none;"
-            " font-size: 12px; width: 38px; height: 28px; }"
-            "QPushButton:hover { background-color: #e81123; color: white; }");
+        // أزرار التحكم بالنافذة
+        btnMin   = new QPushButton("–",  this);
+        btnMax   = new QPushButton("⬜", this);
+        btnClose = new QPushButton("✕",  this);
+
         connect(btnMin,   &QPushButton::clicked, this, &ModernPDFReader::showMinimized);
-        connect(btnMax,   &QPushButton::clicked, this,
-                [this]() { isMaximized() ? showNormal() : showMaximized(); });
+        connect(btnMax,   &QPushButton::clicked, this, [this]() { isMaximized() ? showNormal() : showMaximized(); });
         connect(btnClose, &QPushButton::clicked, this, &ModernPDFReader::close);
+        
         headerLayout->addWidget(btnMin);
         headerLayout->addWidget(btnMax);
         headerLayout->addWidget(btnClose);
@@ -469,25 +484,19 @@ public:
 
         // ── منطقة العرض ──────────────────────────────────────
         stackedWidget = new QStackedWidget(this);
-        stackedWidget->setStyleSheet("background-color: #141414; border: none;");
-
         homePageWidget = new QWidget();
-        homePageWidget->setStyleSheet("background-color: #141414; border: none;");
-        QLabel *welcomeLabel = new QLabel(
-            "Welcome!\n\nClick ( ⋮ ) → Open PDF to start reading.",
-            homePageWidget);
+        welcomeLabel = new QLabel("Welcome!\n\nClick ( ⋮ ) → Open PDF to start reading.", homePageWidget);
         welcomeLabel->setAlignment(Qt::AlignCenter);
-        welcomeLabel->setStyleSheet(
-            "color: #555555; font-size: 18px; font-family: 'Segoe UI'; border: none;");
+
         QVBoxLayout *homeLayout = new QVBoxLayout(homePageWidget);
         homeLayout->addWidget(welcomeLabel);
 
         stackedWidget->addWidget(homePageWidget);
         stackedWidget->setCurrentIndex(0);
         mainLayout->addWidget(stackedWidget, 1);
-        setCentralWidget(central);
+        setCentralWidget(centralWidget);
 
-        // ── إنشاء الجزيرة الديناميكية وزر التبديل ──
+        // ── الجزيرة الديناميكية وزر التبديل ──
         dynamicIsland = new DynamicIsland(this);
         islandToggleBtn = new IslandToggleButton(this);
 
@@ -495,6 +504,78 @@ public:
         islandToggleBtn->hide();
 
         connect(islandToggleBtn, &QPushButton::clicked, this, &ModernPDFReader::toggleIslandState);
+
+        // تطبيق ألوان الثيم المبدئية (الداكن)
+        applyTheme();
+    }
+
+private slots:
+    void toggleTheme() {
+        m_isDarkMode = !m_isDarkMode;
+        if (m_isDarkMode) {
+            themeAction->setText("☀️ Light Mode");
+        } else {
+            themeAction->setText("🌙 Dark Mode");
+        }
+        applyTheme();
+    }
+
+    void applyTheme() {
+        if (m_isDarkMode) {
+            // الثيم الداكن (Dark Theme)
+            centralWidget->setStyleSheet("background-color: #141414; border: none;");
+            header->setStyleSheet("background-color: #1c1c1c; border: none;");
+            headerSep->setStyleSheet("background-color: #3a3a3a; border: none;");
+            welcomeLabel->setStyleSheet("color: #555555; font-size: 18px; font-family: 'Segoe UI'; border: none;");
+            
+            menuBtn->setStyleSheet(
+                "QPushButton { background: transparent; border: none; color: #ffffff; font-size: 18px; font-weight: bold; border-radius: 4px; }"
+                "QPushButton:hover { background-color: #2d2d2d; }"
+            );
+            mainMenu->setStyleSheet(
+                "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d; padding: 4px; font-size: 13px; }"
+                "QMenu::item { padding: 5px 20px; border-radius: 3px; }"
+                "QMenu::item:selected { background-color: #007acc; }"
+            );
+
+            QString btnStyle = "QPushButton { background: transparent; color: #aaaaaa; border: none; font-size: 12px; width: 38px; height: 28px; }"
+                               "QPushButton:hover { background-color: #2d2d2d; color: white; }";
+            btnMin->setStyleSheet(btnStyle);
+            btnMax->setStyleSheet(btnStyle);
+            btnClose->setStyleSheet("QPushButton { background: transparent; color: #aaaaaa; border: none; font-size: 12px; width: 38px; height: 28px; }"
+                                   "QPushButton:hover { background-color: #e81123; color: white; }");
+        } else {
+            // الثيم الفاتح (Light Theme)
+            centralWidget->setStyleSheet("background-color: #f3f3f3; border: none;");
+            header->setStyleSheet("background-color: #e5e5e5; border: none;");
+            headerSep->setStyleSheet("background-color: #cccccc; border: none;");
+            welcomeLabel->setStyleSheet("color: #777777; font-size: 18px; font-family: 'Segoe UI'; border: none;");
+            
+            menuBtn->setStyleSheet(
+                "QPushButton { background: transparent; border: none; color: #222222; font-size: 18px; font-weight: bold; border-radius: 4px; }"
+                "QPushButton:hover { background-color: #d0d0d0; }"
+            );
+            mainMenu->setStyleSheet(
+                "QMenu { background-color: #ffffff; color: #222222; border: 1px solid #cccccc; padding: 4px; font-size: 13px; }"
+                "QMenu::item { padding: 5px 20px; border-radius: 3px; }"
+                "QMenu::item:selected { background-color: #007acc; color: white; }"
+            );
+
+            QString btnStyle = "QPushButton { background: transparent; color: #444444; border: none; font-size: 12px; width: 38px; height: 28px; }"
+                               "QPushButton:hover { background-color: #d0d0d0; color: black; }";
+            btnMin->setStyleSheet(btnStyle);
+            btnMax->setStyleSheet(btnStyle);
+            btnClose->setStyleSheet("QPushButton { background: transparent; color: #444444; border: none; font-size: 12px; width: 38px; height: 28px; }"
+                                   "QPushButton:hover { background-color: #e81123; color: white; }");
+        }
+
+        btnHome->setTheme(m_isDarkMode);
+        dynamicIsland->updateThemeStyle(m_isDarkMode);
+        islandToggleBtn->updateTheme(m_isDarkMode);
+
+        for (auto *tab : m_tabs) {
+            tab->setTheme(m_isDarkMode);
+        }
     }
 
 protected:
@@ -540,12 +621,12 @@ private slots:
         if (filePath.isEmpty()) return;
 
         QWidget *view = new QWidget(this);
-        view->setStyleSheet("background-color: #141414;");
+        view->setStyleSheet(m_isDarkMode ? "background-color: #141414;" : "background-color: #f3f3f3;");
         QVBoxLayout *layout = new QVBoxLayout(view);
 
         QLabel *label = new QLabel("MuPDF engine will be added soon.", view);
         label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet("color: white; font-size: 22px;");
+        label->setStyleSheet(m_isDarkMode ? "color: white; font-size: 22px;" : "color: black; font-size: 22px;");
         layout->addWidget(label);
 
         stackedWidget->addWidget(view);
@@ -554,6 +635,7 @@ private slots:
             QFileInfo(filePath).fileName(),
             tabsContainer
         );
+        tab->setTheme(m_isDarkMode);
         tab->show();
 
         m_tabs.append(tab);
@@ -679,7 +761,6 @@ private slots:
         }
     }
 
-    // --- التحكم بالجزيرة وموضعها ---
     void setIslandVisible(bool visible) {
         m_islandVisible = visible;
         if (visible) {
@@ -736,13 +817,26 @@ private slots:
     }
 
 private:
+    QWidget                   *centralWidget;
+    QWidget                   *header;
+    QFrame                    *headerSep;
     QStackedWidget            *stackedWidget;
     QWidget                   *homePageWidget;
+    QLabel                    *welcomeLabel;
     QWidget                   *tabsContainer;
     QPushButton               *menuBtn;
+    QMenu                     *mainMenu;
+    QMenu                     *settingsMenu;
+    QAction                   *themeAction;
+    HomeButton                *btnHome;
+    QPushButton               *btnMin;
+    QPushButton               *btnMax;
+    QPushButton               *btnClose;
     DynamicIsland             *dynamicIsland;
     IslandToggleButton        *islandToggleBtn;
+    
     bool                       m_islandVisible;
+    bool                       m_isDarkMode;
 
     QVector<BookTab*>          m_tabs;
     QVector<QWidget*>          m_views;

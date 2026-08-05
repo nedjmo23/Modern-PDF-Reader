@@ -23,6 +23,8 @@
 #include <QScrollArea>
 #include <QScroller>
 #include <QTimer>
+#include <windows.h>
+#include <dwmapi.h>
 
 // أنماط ألوان القراءة
 enum ReadingTheme { ThemeLight, ThemeDark, ThemeSepia, ThemeNord };
@@ -548,6 +550,8 @@ public:
           m_draggedTab(nullptr), m_dragOffsetX(0), m_islandVisible(false), m_currentTheme(ThemeDark)
     {
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowMinimizeButtonHint);
+        MARGINS margins = {1, 1, 1, 1};
+        DwmExtendFrameIntoClientArea((HWND)this->winId(), &margins);
         resize(1100, 800);
         setMinimumSize(800, 600);
 

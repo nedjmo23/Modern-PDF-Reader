@@ -1,4 +1,4 @@
-// v15 - Header Menu with Settings & Dynamic Theme Switching (Light/Dark)
+// v16 - Header Menu with Settings, Dynamic Theme Switching & GitHub Build Fix
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -25,7 +25,7 @@ class IslandToggleButton : public QPushButton {
     Q_OBJECT
 public:
     IslandToggleButton(QWidget *parent = nullptr) 
-        : QPushButton(parent), m_collapsed(false) 
+        : QPushButton(parent), m_collapsed(false), m_isDark(true)
     {
         setFixedSize(28, 12);
         setCursor(Qt::PointingHandCursor);
@@ -35,6 +35,11 @@ public:
     void setCollapsed(bool collapsed) {
         m_collapsed = collapsed;
         update();
+    }
+
+    // دالة التأكد من حالة الطي (لحل خطأ التجميع)
+    bool isCollapsed() const {
+        return m_collapsed;
     }
 
     void updateTheme(bool isDark) {
@@ -84,11 +89,11 @@ protected:
 
 private:
     bool m_collapsed;
-    bool m_isDark = true;
+    bool m_isDark;
 };
 
 // ─────────────────────────────────────────────
-// 2. الجزيرة الديناميكية المعلقة (Dynamic Island)
+// 2. الجزيرة الديناميكية (Dynamic Island)
 // ─────────────────────────────────────────────
 class DynamicIsland : public QWidget {
     Q_OBJECT
@@ -106,7 +111,7 @@ public:
         layout->setContentsMargins(10, 0, 10, 0);
         layout->setSpacing(6);
 
-        // أزرار التصفح
+        // أزرار التنقل
         QWidget *navContainer = new QWidget(this);
         QVBoxLayout *navLayout = new QVBoxLayout(navContainer);
         navLayout->setContentsMargins(0, 2, 0, 2);
@@ -147,23 +152,23 @@ public:
         sep2 = createSeparator();
         layout->addWidget(sep2);
 
-        // زر عرض الصفحات
+        // زر نمط العرض
         btnViewMode = new QPushButton("📜 Scroll", this);
-        btnViewMode->setToolTip("Change Page View Mode");
+        btnViewMode->setToolTip("Change View Mode");
         connect(btnViewMode, &QPushButton::clicked, this, &DynamicIsland::toggleViewMode);
         layout->addWidget(btnViewMode);
 
         // زر التدوير
         btnRotate = new QPushButton("🔄", this);
         btnRotate->setFixedSize(24, 24);
-        btnRotate->setToolTip("Rotate Page Clockwise (90°)");
+        btnRotate->setToolTip("Rotate Page 90°");
         connect(btnRotate, &QPushButton::clicked, this, &DynamicIsland::rotateClockwise);
         layout->addWidget(btnRotate);
 
-        // زر القراءة الليلية
+        // زر الوضع الليلي للـ PDF
         btnNightMode = new QPushButton("🌙", this);
         btnNightMode->setFixedSize(24, 24);
-        btnNightMode->setToolTip("Toggle Night Reading Mode");
+        btnNightMode->setToolTip("Invert PDF Colors");
         connect(btnNightMode, &QPushButton::clicked, this, &DynamicIsland::toggleNightMode);
         layout->addWidget(btnNightMode);
 
@@ -236,7 +241,7 @@ private:
 };
 
 // ─────────────────────────────────────────────
-// 3. تبويبة كتاب مع تخصيص ثيم الألوان
+// 3. تبويبة الكتاب
 // ─────────────────────────────────────────────
 class BookTab : public QWidget {
     Q_OBJECT
@@ -405,7 +410,7 @@ private:
 };
 
 // ─────────────────────────────────────────────
-// 5. النافذة الرئيسية مع التبديل الديناميكي للثيم
+// 5. النافذة الرئيسية
 // ─────────────────────────────────────────────
 class ModernPDFReader : public QMainWindow {
     Q_OBJECT
@@ -439,7 +444,7 @@ public:
         QAction *openAction = mainMenu->addAction("📁 Open PDF");
         connect(openAction, &QAction::triggered, this, &ModernPDFReader::openPDF);
 
-        // إضافة قائمة الإعدادات الفرعية (Settings)
+        // قائمة Settings الفرعية
         settingsMenu = mainMenu->addMenu("⚙️ Settings");
         themeAction = settingsMenu->addAction("☀️ Light Mode");
         connect(themeAction, &QAction::triggered, this, &ModernPDFReader::toggleTheme);
@@ -505,7 +510,7 @@ public:
 
         connect(islandToggleBtn, &QPushButton::clicked, this, &ModernPDFReader::toggleIslandState);
 
-        // تطبيق ألوان الثيم المبدئية (الداكن)
+        // تطبيق الألوان المبدئية
         applyTheme();
     }
 
@@ -522,7 +527,6 @@ private slots:
 
     void applyTheme() {
         if (m_isDarkMode) {
-            // الثيم الداكن (Dark Theme)
             centralWidget->setStyleSheet("background-color: #141414; border: none;");
             header->setStyleSheet("background-color: #1c1c1c; border: none;");
             headerSep->setStyleSheet("background-color: #3a3a3a; border: none;");
@@ -545,7 +549,6 @@ private slots:
             btnClose->setStyleSheet("QPushButton { background: transparent; color: #aaaaaa; border: none; font-size: 12px; width: 38px; height: 28px; }"
                                    "QPushButton:hover { background-color: #e81123; color: white; }");
         } else {
-            // الثيم الفاتح (Light Theme)
             centralWidget->setStyleSheet("background-color: #f3f3f3; border: none;");
             header->setStyleSheet("background-color: #e5e5e5; border: none;");
             headerSep->setStyleSheet("background-color: #cccccc; border: none;");

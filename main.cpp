@@ -22,6 +22,7 @@
 #include <QDateTime>
 #include <QScrollArea>
 #include <QScroller>
+#include <QTimer>
 
 // أنماط ألوان القراءة
 enum ReadingTheme { ThemeLight, ThemeDark, ThemeSepia, ThemeNord };
@@ -347,9 +348,16 @@ protected:
             QAction *closeUnpinnedAction = contextMenu.addAction("🧹 Close Unpinned Tabs");
             QAction *closeAction = contextMenu.addAction("✕ Close Tab");
 
-            connect(pinAction, &QAction::triggered, this, [this]() { emit pinToggled(this); });
-            connect(closeUnpinnedAction, &QAction::triggered, this, [this]() { emit closeUnpinnedRequested(); });
-            connect(closeAction, &QAction::triggered, this, &BookTab::closeRequested);
+            // تنفيذ الأوامر بأمان بعد اختفاء القائمة المنبثقة لتجنب انهيار الذاكرة
+            connect(pinAction, &QAction::triggered, this, [this]() { 
+                QTimer::singleShot(0, this, [this]() { emit pinToggled(this); });
+            });
+            connect(closeUnpinnedAction, &QAction::triggered, this, [this]() { 
+                QTimer::singleShot(0, this, [this]() { emit closeUnpinnedRequested(); });
+            });
+            connect(closeAction, &QAction::triggered, this, [this]() { 
+                QTimer::singleShot(0, this, [this]() { emit closeRequested(); });
+            });
 
             contextMenu.exec(event->globalPosition().toPoint());
         }

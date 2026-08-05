@@ -305,7 +305,7 @@ protected:
         switch (m_theme) {
             case ThemeLight: bg = m_selected ? QColor(255, 255, 255) : (m_hovered ? QColor(225, 225, 225) : QColor(210, 210, 210)); break;
             case ThemeDark:  bg = m_selected ? QColor(30, 30, 30) : (m_hovered ? QColor(50, 50, 50) : QColor(38, 38, 38)); break;
-            case ThemeSepia: bg = m_selected ? QColor(24bf238) : (m_hovered ? QColor(235, 222, 195) : QColor(225, 210, 180)); break;
+            case ThemeSepia: bg = m_selected ? QColor(245, 230, 210) : (m_hovered ? QColor(235, 222, 195) : QColor(225, 210, 180)); break;
             case ThemeNord:  bg = m_selected ? QColor(46, 52, 64) : (m_hovered ? QColor(67, 76, 94) : QColor(59, 66, 82)); break;
         }
 

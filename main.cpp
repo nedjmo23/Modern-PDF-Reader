@@ -1,4 +1,4 @@
-// v18 - Fixed Crash on Recent Card Click & Enlarged Card Geometry
+// v19 - Smooth Scrolling Default, Fixed Crashes, Wider Cards, Dim Button & Default Folder Setting
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -21,6 +21,7 @@
 #include <QSettings>
 #include <QDateTime>
 #include <QScrollArea>
+#include <QScroller>
 
 // ─────────────────────────────────────────────
 // 1. زر السهم لطي وإظهار الجزيرة الديناميكية
@@ -102,7 +103,7 @@ public:
     enum ViewMode { Continuous = 0, SinglePage = 1, TwoPages = 2 };
 
     DynamicIsland(QWidget *parent = nullptr) 
-        : QWidget(parent), m_currentViewMode(Continuous), m_rotationAngle(0), m_nightMode(false) 
+        : QWidget(parent), m_currentViewMode(Continuous), m_rotationAngle(0), m_nightMode(false), m_dimMode(false) 
     {
         setFixedHeight(32);
         setObjectName("IslandBody");
@@ -168,6 +169,13 @@ public:
         connect(btnNightMode, &QPushButton::clicked, this, &DynamicIsland::toggleNightMode);
         layout->addWidget(btnNightMode);
 
+        // زر التعتيم بجانب زر القمر
+        btnDimMode = new QPushButton("🔆", this);
+        btnDimMode->setFixedSize(24, 24);
+        btnDimMode->setToolTip("Dim Background / Focus Mode");
+        connect(btnDimMode, &QPushButton::clicked, this, &DynamicIsland::toggleDimMode);
+        layout->addWidget(btnDimMode);
+
         adjustSize();
     }
 
@@ -206,11 +214,12 @@ private slots:
     void rotateClockwise() { m_rotationAngle = (m_rotationAngle + 90) % 360; }
     void toggleNightMode() {
         m_nightMode = !m_nightMode;
-        if (m_nightMode) {
-            btnNightMode->setStyleSheet("QPushButton { background-color: #007acc; color: white; border-radius: 8px; }");
-        } else {
-            btnNightMode->setStyleSheet("");
-        }
+        btnNightMode->setStyleSheet(m_nightMode ? "QPushButton { background-color: #007acc; color: white; border-radius: 8px; }" : "");
+    }
+
+    void toggleDimMode() {
+        m_dimMode = !m_dimMode;
+        btnDimMode->setStyleSheet(m_dimMode ? "QPushButton { background-color: #ff9900; color: white; border-radius: 8px; }" : "");
     }
 
 private:
@@ -227,10 +236,12 @@ private:
     QPushButton *btnViewMode;
     QPushButton *btnRotate;
     QPushButton *btnNightMode;
+    QPushButton *btnDimMode;
 
     ViewMode m_currentViewMode;
     int      m_rotationAngle;
     bool     m_nightMode;
+    bool     m_dimMode;
 };
 
 // ─────────────────────────────────────────────
@@ -358,7 +369,6 @@ public:
     RecentCard(const QString &filePath, const QString &lastOpened, QWidget *parent = nullptr)
         : QFrame(parent), m_filePath(filePath), m_isDark(true)
     {
-        // أبعاد عريضة وأكبر (220x260)
         setFixedSize(220, 260);
         setCursor(Qt::PointingHandCursor);
         setObjectName("RecentCard");
@@ -367,27 +377,22 @@ public:
         layout->setContentsMargins(8, 8, 8, 8);
         layout->setSpacing(6);
 
-        // غلاف معاينة الكتاب (204x170)
         coverLabel = new QLabel(this);
         coverLabel->setFixedSize(204, 170);
         coverLabel->setAlignment(Qt::AlignCenter);
-        coverLabel->setStyleSheet("background-color: #2a2a2a; border-radius: 6px; font-size: 42px;");
         coverLabel->setText("📄");
         layout->addWidget(coverLabel);
 
-        // عنوان الكتاب
         QFileInfo info(filePath);
         titleLabel = new QLabel(info.fileName(), this);
         titleLabel->setFont(QFont("Segoe UI", 10, QFont::Bold));
         titleLabel->setToolTip(info.fileName());
         layout->addWidget(titleLabel);
 
-        // تاريخ الفتح
         dateLabel = new QLabel(lastOpened, this);
         dateLabel->setFont(QFont("Segoe UI", 8));
         layout->addWidget(dateLabel);
 
-        // زر الحذف الفردي (✕)
         deleteBtn = new QPushButton("✕", this);
         deleteBtn->setFixedSize(22, 22);
         deleteBtn->move(width() - 26, 6);
@@ -542,6 +547,10 @@ public:
         themeAction = settingsMenu->addAction("☀️ Light Mode");
         connect(themeAction, &QAction::triggered, this, &ModernPDFReader::toggleTheme);
 
+        // إضافة ميزة تحديد المجلد الافتراضي
+        QAction *dirAction = settingsMenu->addAction("📂 Default Open Directory");
+        connect(dirAction, &QAction::triggered, this, &ModernPDFReader::selectDefaultDirectory);
+
         connect(menuBtn, &QPushButton::clicked, this, [this]() {
             mainMenu->exec(menuBtn->mapToGlobal(QPoint(0, menuBtn->height())));
         });
@@ -619,13 +628,30 @@ private slots:
         recentHeader->addWidget(btnClearHistory);
         homeLayout->addLayout(recentHeader);
 
-        cardsContainerWidget = new QWidget(homePageWidget);
+        // منطقة التمرير الناعم للبطاقات
+        QScrollArea *scrollArea = new QScrollArea(homePageWidget);
+        scrollArea->setWidgetResizable(true);
+        scrollArea->setFrameShape(QFrame::NoFrame);
+        
+        // تفعيل Smooth Scrolling كوضع افتراضي
+        QScroller::grabGesture(scrollArea->viewport(), QScroller::LeftMouseButtonGesture);
+
+        cardsContainerWidget = new QWidget(scrollArea);
         recentGrid = new QGridLayout(cardsContainerWidget);
         recentGrid->setSpacing(20);
         recentGrid->setContentsMargins(0, 10, 0, 0);
 
-        homeLayout->addWidget(cardsContainerWidget);
-        homeLayout->addStretch();
+        scrollArea->setWidget(cardsContainerWidget);
+        homeLayout->addWidget(scrollArea);
+    }
+
+    void selectDefaultDirectory() {
+        QSettings settings("ModernPDFReader", "Settings");
+        QString currentDir = settings.value("defaultDir", "").toString();
+        QString dir = QFileDialog::getExistingDirectory(this, "Select Default Directory", currentDir);
+        if (!dir.isEmpty()) {
+            settings.setValue("defaultDir", dir);
+        }
     }
 
     void toggleTheme() {
@@ -758,12 +784,15 @@ private slots:
     }
 
     void openPDFFileDialog() {
-        QString filePath = QFileDialog::getOpenFileName(this, "Open PDF", "", "PDF Files (*.pdf)");
+        QSettings settings("ModernPDFReader", "Settings");
+        QString defaultDir = settings.value("defaultDir", "").toString();
+
+        QString filePath = QFileDialog::getOpenFileName(this, "Open PDF", defaultDir, "PDF Files (*.pdf)");
         if (!filePath.isEmpty()) openPDFFilePath(filePath);
     }
 
     void openPDFFilePath(const QString &filePath) {
-        // إذا كان الكتاب مفتوحاً مسبقاً، تحول إلى تبويبته فوراً
+        // إذا كان الكتاب مفتوحاً مسبقاً، تحول إلى تبويبه فوراً بدون مشاكل خروج
         for (int i = 0; i < m_tabs.size(); ++i) {
             if (m_tabs[i]->filePath() == filePath) {
                 selectTab(i);
@@ -773,23 +802,24 @@ private slots:
 
         saveToRecentHistory(filePath);
 
-        QWidget *view = new QWidget(this);
-        view->setStyleSheet(m_isDarkMode ? "background-color: #141414;" : "background-color: #f3f3f3;");
-        QVBoxLayout *layout = new QVBoxLayout(view);
+        // إنشاء محتوى تبويبة العرض بأمان كامل
+        QWidget *viewContainer = new QWidget(this);
+        QVBoxLayout *layout = new QVBoxLayout(viewContainer);
+        layout->setContentsMargins(0, 0, 0, 0);
 
-        QLabel *label = new QLabel("MuPDF engine will be added soon.\n\nFile: " + QFileInfo(filePath).fileName(), view);
+        QLabel *label = new QLabel("MuPDF Engine view for: " + QFileInfo(filePath).fileName(), viewContainer);
         label->setAlignment(Qt::AlignCenter);
         label->setStyleSheet(m_isDarkMode ? "color: white; font-size: 20px;" : "color: black; font-size: 20px;");
         layout->addWidget(label);
 
-        stackedWidget->addWidget(view);
+        stackedWidget->addWidget(viewContainer);
 
         BookTab *tab = new BookTab(QFileInfo(filePath).fileName(), filePath, tabsContainer);
         tab->setTheme(m_isDarkMode);
         tab->show();
 
         m_tabs.append(tab);
-        m_views.append(view);
+        m_views.append(viewContainer);
 
         connect(tab, &BookTab::clicked, this, [this, tab]() { selectTab(m_tabs.indexOf(tab)); });
         connect(tab, &BookTab::closeRequested, this, [this, tab]() { closeTabByWidget(tab); });
@@ -1012,23 +1042,4 @@ private:
     IslandToggleButton        *islandToggleBtn;
     
     bool                       m_islandVisible;
-    bool                       m_isDarkMode;
-
-    QVector<BookTab*>          m_tabs;
-    QVector<QWidget*>          m_views;
-    QVector<RecentCard*>       m_recentCards;
-    int                        m_currentIndex;
-    QPoint                     m_windowDragStart;
-    bool                       m_draggingWindow;
-    BookTab                   *m_draggedTab;
-    int                        m_dragOffsetX;
-};
-
-int main(int argc, char *argv[]) {
-    QApplication app(argc, argv);
-    ModernPDFReader viewer;
-    viewer.show();
-    return app.exec();
-}
-
-#include "main.moc"
+    bool                       m

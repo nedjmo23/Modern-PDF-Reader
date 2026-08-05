@@ -721,35 +721,36 @@ private slots:
         for (auto *card : m_recentCards) card->updateTheme(m_isDarkMode);
     }
 
-    void loadRecentHistory() {
-        QSettings settings("ModernPDFReader", "History");
-        QStringList recentFiles = settings.value("recentFiles").toStringList();
+   void loadRecentHistory() {
+    QSettings settings("ModernPDFReader", "History");
+    QStringList recentFiles = settings.value("recentFiles").toStringList();
 
-        for (auto *card : m_recentCards) {
-            recentGrid->removeWidget(card);
-            delete card;
-        }
-        m_recentCards.clear();
-
-        int row = 0, col = 0;
-        for (const QString &path : recentFiles) {
-            if (!QFile::exists(path)) continue;
-
-            QString timeStr = settings.value("time_" + path, "Recently").toString();
-            RecentCard *card = new RecentCard(path, timeStr, cardsContainerWidget);
-            card->updateTheme(m_isDarkMode);
-
-            connect(card, &RecentCard::clicked, this, &ModernPDFReader::openPDFFilePath);
-            connect(card, &RecentCard::deleteRequested, this, &ModernPDFReader::deleteRecentCard);
-
-            recentGrid->addWidget(card, row, col);
-            m_recentCards.append(card);
-
-            col++;
-            if (col >= 4) { col = 0; row++; }
-            if (m_recentCards.size() >= 8) break;
-        }
+    for (auto *card : m_recentCards) {
+        recentGrid->removeWidget(card);
+        card->deleteLater(); // تم استبدال delete بـ deleteLater للوقاية من الخروج
     }
+    m_recentCards.clear();
+
+    int row = 0, col = 0;
+    for (const QString &path : recentFiles) {
+        if (!QFile::exists(path)) continue;
+
+        QString timeStr = settings.value("time_" + path, "Recently").toString();
+        RecentCard *card = new RecentCard(path, timeStr, cardsContainerWidget);
+        card->updateTheme(m_isDarkMode);
+
+        // استخدام Qt::QueuedConnection يضمن تنفيذ الفتح بعد انتهاء حدث الضغط بسلام
+        connect(card, &RecentCard::clicked, this, &ModernPDFReader::openPDFFilePath, Qt::QueuedConnection);
+        connect(card, &RecentCard::deleteRequested, this, &ModernPDFReader::deleteRecentCard, Qt::QueuedConnection);
+
+        recentGrid->addWidget(card, row, col);
+        m_recentCards.append(card);
+
+        col++;
+        if (col >= 4) { col = 0; row++; }
+        if (m_recentCards.size() >= 8) break;
+    }
+}
 
     void saveToRecentHistory(const QString &filePath) {
         QSettings settings("ModernPDFReader", "History");

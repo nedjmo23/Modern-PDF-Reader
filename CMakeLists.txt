@@ -15,7 +15,7 @@ set(PROJECT_SOURCES
     main.cpp
 )
 
-qt_add_executable(ModernPDFReader
+qt_add_executable(ModernPDFReader WIN32
     ${PROJECT_SOURCES}
 )
 

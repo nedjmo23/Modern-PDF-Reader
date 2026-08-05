@@ -547,7 +547,7 @@ public:
         : m_draggingWindow(false), m_currentIndex(-1),
           m_draggedTab(nullptr), m_dragOffsetX(0), m_islandVisible(false), m_currentTheme(ThemeDark)
     {
-        setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+        setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowMinimizeButtonHint);
         resize(1100, 800);
         setMinimumSize(800, 600);
 
@@ -614,10 +614,20 @@ public:
         connect(btnCloseUnpinned, &QPushButton::clicked, this, &ModernPDFReader::closeAllUnpinnedTabs);
         headerLayout->addWidget(btnCloseUnpinned);
 
-        btnMin   = new QPushButton("–",  this);
-        btnMax   = new QPushButton("⬜", this);
-        btnClose = new QPushButton("✕",  this);
+        QFont iconFont("Segoe MDL2 Assets", 9);
 
+        btnMin = new QPushButton(this);
+        btnMin->setFont(iconFont);
+        btnMin->setText(QString::fromUtf8("\uE921"));
+
+        btnMax = new QPushButton(this);
+        btnMax->setFont(iconFont);
+        btnMax->setText(QString::fromUtf8("\uE922"));
+
+        btnClose = new QPushButton(this);
+        btnClose->setFont(iconFont);
+        btnClose->setText(QString::fromUtf8("\uE8BB"));
+        
         connect(btnMin,   &QPushButton::clicked, this, &ModernPDFReader::showMinimized);
         connect(btnMax,   &QPushButton::clicked, this, [this]() { isMaximized() ? showNormal() : showMaximized(); });
         connect(btnClose, &QPushButton::clicked, this, &ModernPDFReader::close);

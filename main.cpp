@@ -23,8 +23,6 @@
 #include <QScrollArea>
 #include <QScroller>
 #include <QTimer>
-#include <windows.h>
-#include <dwmapi.h>
 
 // أنماط ألوان القراءة
 enum ReadingTheme { ThemeLight, ThemeDark, ThemeSepia, ThemeNord };
@@ -549,11 +547,16 @@ public:
         : m_draggingWindow(false), m_currentIndex(-1),
           m_draggedTab(nullptr), m_dragOffsetX(0), m_islandVisible(false), m_currentTheme(ThemeDark)
     {
-        setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowMinimizeButtonHint);
-        MARGINS margins = {1, 1, 1, 1};
-        DwmExtendFrameIntoClientArea((HWND)this->winId(), &margins);
+        setWindowFlags(Qt::Window);
         resize(1100, 800);
         setMinimumSize(800, 600);
+
+        // استعادة الثيم المحفوظ مسبقاً عند الفتح
+        QSettings settings("ModernPDFReader", "Settings");
+        int savedTheme = settings.value("currentTheme", ThemeDark).toInt();
+        m_currentTheme = static_cast<ReadingTheme>(savedTheme);
+
+        centralWidget = new QWidget(this);
 
         centralWidget = new QWidget(this);
         QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
@@ -575,7 +578,7 @@ public:
         QAction *openAction = mainMenu->addAction("📁 Open PDF");
         connect(openAction, &QAction::triggered, this, &ModernPDFReader::openPDFFileDialog);
 
-        themeMenu = mainMenu->addMenu("🎨 Reading Theme");
+        themeMenu = mainMenu->addMenu("🎨 Themes");
         
         QAction *actLight = themeMenu->addAction("☀️ Light Theme");
         QAction *actDark  = themeMenu->addAction("🌙 Dark Theme");
@@ -705,6 +708,11 @@ private slots:
 
     void setReadingTheme(ReadingTheme theme) {
         m_currentTheme = theme;
+
+        // حفظ الثيم المختار حالياً ليبقى عند إعادة الفتح
+        QSettings settings("ModernPDFReader", "Settings");
+        settings.setValue("currentTheme", m_currentTheme);
+        
         applyTheme();
     }
 

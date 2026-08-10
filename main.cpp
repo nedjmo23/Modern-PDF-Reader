@@ -555,8 +555,14 @@ public:
         QSettings settings("ModernPDFReader", "Settings");
         int savedTheme = settings.value("currentTheme", ThemeDark).toInt();
         m_currentTheme = static_cast<ReadingTheme>(savedTheme);
-
-        centralWidget = new QWidget(this);
+        
+        // إعداد أنيميشن ظهور النافذة بسلاسة
+        m_windowAnim = new QPropertyAnimation(this, "windowOpacity", this);
+        m_windowAnim->setDuration(300); // مدة الأنيميشن بالميلي ثانية
+        m_windowAnim->setStartValue(0.0);
+        m_windowAnim->setEndValue(1.0);
+        m_windowAnim->setEasingCurve(QEasingCurve::InOutQuad);
+        m_windowAnim->start();
 
         centralWidget = new QWidget(this);
         QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
@@ -567,7 +573,7 @@ public:
         header = new QWidget(this);
         header->setFixedHeight(38);
         QHBoxLayout *headerLayout = new QHBoxLayout(header);
-        headerLayout->setContentsMargins(6, 4, 4, 0);
+        headerLayout->setContentsMargins(6, 2, 4, 2);
         headerLayout->setSpacing(4);
 
         menuBtn = new QPushButton("⋮", this);
@@ -1125,6 +1131,7 @@ private:
     bool                       m_draggingWindow;
     BookTab                   *m_draggedTab;
     int                        m_dragOffsetX;
+    QPropertyAnimation        *m_windowAnim;
 };
 
 int main(int argc, char *argv[]) {

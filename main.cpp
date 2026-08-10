@@ -571,9 +571,9 @@ public:
 
         // ── الشريط العلوي ─────────────────────────────────────
         header = new QWidget(this);
-        header->setFixedHeight(38);
+        header->setFixedHeight(32);
         QHBoxLayout *headerLayout = new QHBoxLayout(header);
-        headerLayout->setContentsMargins(6, 2, 4, 2);
+        headerLayout->setContentsMargins(6, 1, 4, 1);
         headerLayout->setSpacing(4);
 
         menuBtn = new QPushButton("⋮", this);
@@ -642,7 +642,7 @@ public:
         btnClose->setText(QString::fromUtf8("\uE8BB"));
         
         connect(btnMin,   &QPushButton::clicked, this, &ModernPDFReader::showMinimized);
-        connect(btnMax,   &QPushButton::clicked, this, [this]() { isMaximized() ? showNormal() : showMaximized(); });
+        connect(btnMax, &QPushButton::clicked, this, &ModernPDFReader::toggleMaximizedAnimated);
         connect(btnClose, &QPushButton::clicked, this, &ModernPDFReader::close);
         
         headerLayout->addWidget(btnMin);
@@ -1095,6 +1095,79 @@ protected:
     }
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton) m_draggingWindow = false;
+    }
+
+    // دالة إغلاق النافذة مع أنيميشن تلاشي سلس
+    void closeEvent(QCloseEvent *event) override {
+        if (windowOpacity() > 0.0) {
+            event->ignore(); // منع الإغلاق الفوري المؤقت
+            QPropertyAnimation *closeAnim = new QPropertyAnimation(this, "windowOpacity", this);
+            closeAnim->setDuration(250); // مدة التلاشي (ربع ثانية)
+            closeAnim->setStartValue(1.0);
+            closeAnim->setEndValue(0.0);
+            closeAnim->setEasingCurve(QEasingCurve::InOutQuad);
+            
+            // عند انتهاء الأنيميشن، قم بإغلاق البرنامج فعلياً
+            connect(closeAnim, &QPropertyAnimation::finished, this, &QWidget::close);
+            closeAnim->start(QAbstractAnimation::DeleteWhenStopped);
+        } else {
+            QMainWindow::closeEvent(event);
+        }
+    }
+
+    // دالة مراقبة تغيير حالة النافذة (مثل التصغير لشريط المهام) مع أنيميشن سلس
+    void changeEvent(QEvent *event) override {
+        if (event->type() == QEvent::WindowStateChange) {
+            if (isMinimized()) {
+                // إذا أراد المستخدم تصغير النافذة، نقوم بتخفيض الشفافية بسلاسة أولاً
+                QPropertyAnimation *minAnim = new QPropertyAnimation(this, "windowOpacity", this);
+                minAnim->setDuration(150);
+                minAnim->setStartValue(1.0);
+                minAnim->setEndValue(0.0);
+                minAnim->setEasingCurve(QEasingCurve::InOutQuad);
+                minAnim->start(QAbstractAnimation::DeleteWhenStopped);
+            } else if (!isHidden() && windowOpacity() < 1.0) {
+                // عند العودة من شريط المهام (استعادة النافذة)، نعيد الشفافية بسلاسة
+                QPropertyAnimation *restoreAnim = new QPropertyAnimation(this, "windowOpacity", this);
+                restoreAnim->setDuration(200);
+                restoreAnim->setStartValue(0.0);
+                restoreAnim->setEndValue(1.0);
+                restoreAnim->setEasingCurve(QEasingCurve::InOutQuad);
+                restoreAnim->start(QAbstractAnimation::DeleteWhenStopped);
+            }
+        }
+        QWidget::changeEvent(event);
+    }
+
+    // دالة مخصصة للتحكم بالتكبير والتصغير الحركي (Maximize/Restore)
+    void toggleMaximizedAnimated() {
+        QRect targetGeometry;
+        QRect startGeometry = this->geometry();
+
+        if (isMaximized()) {
+            // إذا كانت مكبرة، سنعيدها لحجمها العادي السابق
+            showNormal();
+            // يمكنك تحديد الحجم العادي الافتراضي أو الاعتماد على نافذة النظام
+            return;
+        } else {
+            // إذا كانت عادية، سنقوم بتكبيرها لتملأ الشاشة المتاحة (بدون إخفاء شريط المهام)
+            targetGeometry = screen()->availableGeometry();
+        }
+
+        // أنيميشن تغيير الحجم بسلاسة
+        QPropertyAnimation *sizeAnim = new QPropertyAnimation(this, "geometry", this);
+        sizeAnim->setDuration(250); // مدة الحركة (ربع ثانية)
+        sizeAnim->setStartValue(startGeometry);
+        sizeAnim->setEndValue(targetGeometry);
+        sizeAnim->setEasingCurve(QEasingCurve::InOutQuad);
+        
+        if (!isMaximized()) {
+            sizeAnim->start(QAbstractAnimation::DeleteWhenStopped);
+            // بعد انتهاء الأنيميشن، نجعل حالة النافذة رسمياً Maximize
+            connect(sizeAnim, &QPropertyAnimation::finished, this, [this]() {
+                showMaximized();
+            });
+        }
     }
 
 private:

@@ -22,3 +22,8 @@ qt_add_executable(ModernPDFReader WIN32
 target_link_libraries(ModernPDFReader PRIVATE
     Qt6::Widgets
 )
+
+# ربط مكتبة ويندوز DWM للأنيميشن وحواف النافذة حصراً عند العمل على ويندوز
+if(WIN32)
+    target_link_libraries(ModernPDFReader PRIVATE dwmapi)
+endif()

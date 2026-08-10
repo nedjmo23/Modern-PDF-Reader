@@ -547,7 +547,7 @@ public:
         : m_draggingWindow(false), m_currentIndex(-1),
           m_draggedTab(nullptr), m_dragOffsetX(0), m_islandVisible(false), m_currentTheme(ThemeDark)
     {
-        setWindowFlags(Qt::Window);
+        setWindowFlags(Qt::Window | Qt::CustomizeWindowHint | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint);
         resize(1100, 800);
         setMinimumSize(800, 600);
 

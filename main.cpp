@@ -1,4 +1,4 @@
-// main.cpp - Modern PDF Reader with Persistent Normal Geometry & Smooth Animations
+// main.cpp - Complete, Updated & Fixed
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -8,8 +8,6 @@
 #include <QGridLayout>
 #include <QPushButton>
 #include <QMouseEvent>
-#include <QResizeEvent>
-#include <QMoveEvent>
 #include <QFileInfo>
 #include <QPainter>
 #include <QLabel>
@@ -139,6 +137,7 @@ public:
 
         sep1 = createSeparator();
         layout->addWidget(sep1);
+
         QPushButton *btnZoomOut = new QPushButton("—", this);
         QPushButton *btnZoomIn = new QPushButton("+", this);
         btnZoomOut->setFixedSize(20, 20);
@@ -168,6 +167,7 @@ public:
         btnNightMode->setToolTip("Invert PDF Colors");
         connect(btnNightMode, &QPushButton::clicked, this, &DynamicIsland::toggleNightMode);
         layout->addWidget(btnNightMode);
+
         btnDimMode = new QPushButton("🔆", this);
         btnDimMode->setFixedSize(24, 24);
         btnDimMode->setToolTip("Dim Background / Focus Mode");
@@ -210,6 +210,7 @@ private slots:
     }
 
     void rotateClockwise() { m_rotationAngle = (m_rotationAngle + 90) % 360; }
+    
     void toggleNightMode() {
         m_nightMode = !m_nightMode;
         btnNightMode->setStyleSheet(m_nightMode ? "QPushButton { background-color: #007acc; color: white; border-radius: 8px; }" : "");
@@ -252,6 +253,7 @@ public:
     static const int TAB_HEIGHT  = 30;
     static const int TAB_SPACING = 3;
     static const int TAB_Y       = 4;
+
     BookTab(const QString &title, const QString &filePath, QWidget *parent = nullptr)
         : QWidget(parent), m_title(title), m_filePath(filePath), m_selected(false),
           m_hovered(false), m_dragging(false), m_pinned(false), m_theme(ThemeDark)
@@ -544,9 +546,6 @@ public:
         resize(1100, 800);
         setMinimumSize(800, 600);
 
-        // التأسيس المبدئي لأبعاد النافذة العادية
-        m_normalGeometry = QRect(100, 100, 1100, 800);
-
         // تفعيل استجابة شريط المهام للتصغير في ويندوز
         HWND hwnd = reinterpret_cast<HWND>(this->winId());
         DWORD style = GetWindowLong(hwnd, GWL_STYLE);
@@ -581,6 +580,7 @@ public:
         menuBtn = new QPushButton("⋮", this);
         menuBtn->setFixedSize(28, 28);
         menuBtn->setCursor(Qt::PointingHandCursor);
+
         mainMenu = new QMenu(this);
         QAction *openAction = mainMenu->addAction("📁 Open PDF");
         connect(openAction, &QAction::triggered, this, &ModernPDFReader::openPDFFileDialog);
@@ -656,7 +656,7 @@ public:
 
         connect(btnMax, &QPushButton::clicked, this, &ModernPDFReader::toggleMaximizedAnimated);
         connect(btnClose, &QPushButton::clicked, this, &ModernPDFReader::close);
-        
+
         headerLayout->addWidget(btnMin);
         headerLayout->addWidget(btnMax);
         headerLayout->addWidget(btnClose);
@@ -668,6 +668,7 @@ public:
         setupHomePage();
         stackedWidget->addWidget(homePageWidget);
         stackedWidget->setCurrentIndex(0);
+
         mainLayout->addWidget(stackedWidget, 1);
         setCentralWidget(centralWidget);
 
@@ -705,213 +706,74 @@ private slots:
         QScrollArea *scrollArea = new QScrollArea(homePageWidget);
         scrollArea->setWidgetResizable(true);
         scrollArea->setFrameShape(QFrame::NoFrame);
-        
-        QScroller::grabGesture(scrollArea->viewport(), QScroller::LeftMouseButtonGesture);
 
-        cardsContainerWidget = new QWidget(scrollArea);
+        cardsContainerWidget = new QWidget();
         recentGrid = new QGridLayout(cardsContainerWidget);
         recentGrid->setSpacing(20);
-        recentGrid->setContentsMargins(0, 10, 0, 0);
 
         scrollArea->setWidget(cardsContainerWidget);
-        homeLayout->addWidget(scrollArea);
-    }
-
-    void selectDefaultDirectory() {
-        QSettings settings("ModernPDFReader", "Settings");
-        QString currentDir = settings.value("defaultDir", "").toString();
-        QString dir = QFileDialog::getExistingDirectory(this, "Select Default Directory", currentDir);
-        if (!dir.isEmpty()) settings.setValue("defaultDir", dir);
-    }
-
-    void setReadingTheme(ReadingTheme theme) {
-        m_currentTheme = theme;
-        QSettings settings("ModernPDFReader", "Settings");
-        settings.setValue("currentTheme", m_currentTheme);
-        applyTheme();
-    }
-
-    void applyTheme() {
-        QString bgMain, bgHeader, textColor;
-        switch (m_currentTheme) {
-            case ThemeLight: bgMain = "#f3f3f3"; bgHeader = "#e5e5e5"; textColor = "#222222"; break;
-            case ThemeDark:  bgMain = "#141414"; bgHeader = "#1c1c1c"; textColor = "#ffffff"; break;
-            case ThemeSepia: bgMain = "#fbf0d9"; bgHeader = "#eddcb9"; textColor = "#433222"; break;
-            case ThemeNord:  bgMain = "#2e3440"; bgHeader = "#3b4252"; textColor = "#eceff4"; break;
-        }
-
-        centralWidget->setStyleSheet(QString("background-color: %1; border: none;").arg(bgMain));
-        header->setStyleSheet(QString("background-color: %1; border: none;").arg(bgHeader));
-
-        menuBtn->setStyleSheet(QString(
-            "QPushButton { background: transparent; border: none; color: %1; font-size: 18px; font-weight: bold; border-radius: 4px; }"
-            "QPushButton:hover { background-color: rgba(150, 150, 150, 0.2); }"
-        ).arg(textColor));
-        mainMenu->setStyleSheet(
-            "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d; padding: 4px; font-size: 13px; }"
-            "QMenu::item { padding: 5px 20px; border-radius: 3px; }"
-            "QMenu::item:selected { background-color: #007acc; }"
-        );
-        btnCloseUnpinned->setStyleSheet(QString(
-            "QPushButton { background: transparent; color: %1; border: none; font-size: 14px; border-radius: 4px; }"
-            "QPushButton:hover { background-color: rgba(150, 150, 150, 0.2); }"
-        ).arg(textColor));
-        QString btnStyle = QString("QPushButton { background: transparent; color: %1; border: none; font-size: 12px; width: 38px; height: 28px; }"
-                           "QPushButton:hover { background-color: rgba(150, 150, 150, 0.2); }").arg(textColor);
-        btnMin->setStyleSheet(btnStyle);
-        btnMax->setStyleSheet(btnStyle);
-        btnClose->setStyleSheet("QPushButton { background: transparent; color: #aaaaaa; border: none; font-size: 12px; width: 38px; height: 28px; }"
-                               "QPushButton:hover { background-color: #e81123; color: white; }");
-        recentTitle->setStyleSheet(QString("color: %1;").arg(textColor));
-        btnClearHistory->setStyleSheet(
-            "QPushButton { background-color: rgba(150, 150, 150, 0.15); color: #cccccc; border: 1px solid rgba(150, 150, 150, 0.3); border-radius: 6px; font-size: 11px; }"
-            "QPushButton:hover { background-color: #e81123; color: white; border-color: #e81123; }"
-        );
-        btnHome->setTheme(m_currentTheme);
-        dynamicIsland->updateThemeStyle(m_currentTheme);
-        islandToggleBtn->updateTheme(m_currentTheme);
-
-        for (auto *tab : m_tabs) tab->setTheme(m_currentTheme);
-        for (auto *card : m_recentCards) card->updateTheme(m_currentTheme);
-    }
-
-    void loadRecentHistory() {
-        QSettings settings("ModernPDFReader", "History");
-        QStringList recentFiles = settings.value("recentFiles").toStringList();
-
-        for (auto *card : m_recentCards) {
-            recentGrid->removeWidget(card);
-            card->deleteLater();
-        }
-        m_recentCards.clear();
-
-        int row = 0, col = 0;
-        for (const QString &path : recentFiles) {
-            if (!QFile::exists(path)) continue;
-            QString timeStr = settings.value("time_" + path, "Recently").toString();
-            RecentCard *card = new RecentCard(path, timeStr, cardsContainerWidget);
-            card->updateTheme(m_currentTheme);
-
-            connect(card, &RecentCard::clicked, this, &ModernPDFReader::openPDFFilePath, Qt::QueuedConnection);
-            connect(card, &RecentCard::deleteRequested, this, &ModernPDFReader::deleteRecentCard, Qt::QueuedConnection);
-
-            recentGrid->addWidget(card, row, col);
-            m_recentCards.append(card);
-
-            col++;
-            if (col >= 4) { col = 0; row++; }
-            if (m_recentCards.size() >= 8) break;
-        }
-    }
-
-    void saveToRecentHistory(const QString &filePath) {
-        QSettings settings("ModernPDFReader", "History");
-        QStringList recentFiles = settings.value("recentFiles").toStringList();
-        recentFiles.removeAll(filePath);
-        recentFiles.prepend(filePath);
-
-        while (recentFiles.size() > 8) recentFiles.removeLast();
-
-        settings.setValue("recentFiles", recentFiles);
-        settings.setValue("time_" + filePath, QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm"));
-
-        loadRecentHistory();
-    }
-
-    void deleteRecentCard(const QString &filePath) {
-        QSettings settings("ModernPDFReader", "History");
-        QStringList recentFiles = settings.value("recentFiles").toStringList();
-        recentFiles.removeAll(filePath);
-        settings.setValue("recentFiles", recentFiles);
-        settings.remove("time_" + filePath);
-
-        loadRecentHistory();
-    }
-
-    void clearAllHistory() {
-        QSettings settings("ModernPDFReader", "History");
-        settings.clear();
-        loadRecentHistory();
+        homeLayout->addWidget(scrollArea, 1);
     }
 
     void openPDFFileDialog() {
         QSettings settings("ModernPDFReader", "Settings");
         QString defaultDir = settings.value("defaultDir", "").toString();
-
-        QString filePath = QFileDialog::getOpenFileName(this, "Open PDF", defaultDir, "PDF Files (*.pdf)");
-        if (!filePath.isEmpty()) openPDFFilePath(filePath);
+        QString filePath = QFileDialog::getOpenFileName(this, "Open PDF File", defaultDir, "PDF Files (*.pdf)");
+        if (!filePath.isEmpty()) {
+            openPDFFile(filePath);
+        }
     }
 
-    void openPDFFilePath(const QString &filePath) {
+    void openPDFFile(const QString &filePath) {
         for (int i = 0; i < m_tabs.size(); ++i) {
             if (m_tabs[i]->filePath() == filePath) {
                 selectTab(i);
+                addRecentBook(filePath);
                 return;
             }
         }
 
-        saveToRecentHistory(filePath);
-        QWidget *viewContainer = new QWidget(this);
-        QVBoxLayout *layout = new QVBoxLayout(viewContainer);
-        layout->setContentsMargins(0, 0, 0, 0);
-        QLabel *label = new QLabel("MuPDF Engine view for: " + QFileInfo(filePath).fileName(), viewContainer);
-        label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet("font-size: 20px;");
-        layout->addWidget(label);
-
-        stackedWidget->addWidget(viewContainer);
-        BookTab *tab = new BookTab(QFileInfo(filePath).fileName(), filePath, tabsContainer);
-        tab->setTheme(m_currentTheme);
-        tab->show();
-
-        m_tabs.append(tab);
-        m_views.append(viewContainer);
-
-        connect(tab, &BookTab::clicked, this, [this, tab]() { selectTab(m_tabs.indexOf(tab)); });
-        connect(tab, &BookTab::closeRequested, this, [this, tab]() { closeTabByWidget(tab); });
+        QFileInfo info(filePath);
+        BookTab *tab = new BookTab(info.fileName(), filePath, tabsContainer);
+        connect(tab, &BookTab::clicked, this, [this, tab]() {
+            int idx = m_tabs.indexOf(tab);
+            if (idx >= 0) selectTab(idx);
+        });
+        connect(tab, &BookTab::closeRequested, this, [this, tab]() {
+            closeTabByWidget(tab);
+        });
         connect(tab, &BookTab::pinToggled, this, &ModernPDFReader::togglePinTab);
         connect(tab, &BookTab::closeUnpinnedRequested, this, &ModernPDFReader::closeAllUnpinnedTabs);
-
         connect(tab, &BookTab::dragStarted, this, &ModernPDFReader::onDragStarted);
         connect(tab, &BookTab::dragMoved, this, &ModernPDFReader::onDragMoved);
         connect(tab, &BookTab::dragEnded, this, &ModernPDFReader::onDragEnded);
 
-        repositionTabs(false);
-        selectTab(m_tabs.size() - 1);
-    }
+        tab->setTheme(m_currentTheme);
 
-    void togglePinTab(BookTab *tab) {
-        tab->setPinned(!tab->isPinned());
-        m_tabs.removeAll(tab);
-        int insertIndex = 0;
-        if (tab->isPinned()) {
-            for (int i = 0; i < m_tabs.size(); ++i) {
-                if (m_tabs[i]->isPinned()) insertIndex++;
-            }
-        } else {
-            insertIndex = m_tabs.size();
-        }
-        m_tabs.insert(insertIndex, tab);
+        QWidget *view = new QWidget();
+        QVBoxLayout *vbox = new QVBoxLayout(view);
+        vbox->setContentsMargins(0, 0, 0, 0);
+        QLabel *lbl = new QLabel("PDF Content View:\n" + filePath, view);
+        lbl->setAlignment(Qt::AlignCenter);
+        vbox->addWidget(lbl);
 
+        m_tabs.append(tab);
+        m_views.append(view);
+        stackedWidget->addWidget(view);
+
+        tab->show();
         repositionTabs(true);
-    }
+        selectTab(m_tabs.size() - 1);
 
-    void closeAllUnpinnedTabs() {
-        QVector<BookTab*> tabsToClose;
-        for (auto *tab : m_tabs) {
-            if (!tab->isPinned()) tabsToClose.append(tab);
-        }
-
-        for (auto *tab : tabsToClose) {
-            closeTabByWidget(tab);
-        }
+        addRecentBook(filePath);
     }
 
     void selectTab(int index) {
         if (index < 0 || index >= m_tabs.size()) return;
         m_currentIndex = index;
-        for (int i = 0; i < m_tabs.size(); i++)
+        for (int i = 0; i < m_tabs.size(); ++i) {
             m_tabs[i]->setSelected(i == index);
+        }
         stackedWidget->setCurrentWidget(m_views[index]);
         setIslandVisible(true);
     }
@@ -919,7 +781,6 @@ private slots:
     void closeTabByWidget(BookTab *tab) {
         int index = m_tabs.indexOf(tab);
         if (index < 0) return;
-
         int activeIndex = m_currentIndex;
         tab->stopAnimations();
 
@@ -939,8 +800,9 @@ private slots:
         } else {
             if (activeIndex > index) activeIndex--;
             m_currentIndex = activeIndex;
-            for (int i = 0; i < m_tabs.size(); i++)
+            for (int i = 0; i < m_tabs.size(); i++) {
                 m_tabs[i]->setSelected(i == m_currentIndex);
+            }
         }
         repositionTabs(true);
     }
@@ -959,8 +821,8 @@ private slots:
     }
 
     void onDragStarted(BookTab *tab, int globalX) {
-        m_draggedTab     = tab;
-        m_dragOffsetX    = globalX - tabsContainer->mapToGlobal(tab->pos()).x();
+        m_draggedTab = tab;
+        m_dragOffsetX = globalX - tabsContainer->mapToGlobal(tab->pos()).x();
         m_draggingWindow = false;
         tab->raise();
     }
@@ -970,79 +832,64 @@ private slots:
         int localX = tabsContainer->mapFromGlobal(QPoint(globalX, 0)).x() - m_dragOffsetX;
         localX = qBound(0, localX, tabsContainer->width() - BookTab::TAB_WIDTH);
         tab->move(localX, BookTab::TAB_Y);
-        int step     = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
-        int centerX  = localX + BookTab::TAB_WIDTH / 2;
-        int newIndex = qBound(0, centerX / step, m_tabs.size() - 1);
-        int oldIndex = m_tabs.indexOf(tab);
-        if (newIndex != oldIndex && !m_tabs[newIndex]->isPinned()) {
-            m_tabs.removeAt(oldIndex);
-            m_views.insert(newIndex, m_views.takeAt(oldIndex));
-            m_tabs.insert(newIndex, tab);
-            m_currentIndex = newIndex;
-            animateTabsExcept(tab);
+
+        int currentIndex = m_tabs.indexOf(tab);
+        int newIndex = localX / (BookTab::TAB_WIDTH + BookTab::TAB_SPACING);
+        newIndex = qBound(0, newIndex, m_tabs.size() - 1);
+
+        if (newIndex != currentIndex) {
+            m_tabs.move(currentIndex, newIndex);
+            m_views.move(currentIndex, newIndex);
+            m_currentIndex = m_tabs.indexOf(tab);
+            repositionTabs(true);
         }
     }
 
     void onDragEnded(BookTab *tab) {
-        if (!m_draggedTab) return;
+        Q_UNUSED(tab);
         m_draggedTab = nullptr;
-        int index   = m_tabs.indexOf(tab);
-        int targetX = index * (BookTab::TAB_WIDTH + BookTab::TAB_SPACING);
-        animateTab(tab, targetX);
-    }
-
-    void animateTab(BookTab *tab, int targetX) {
-        if (tab->x() == targetX) return;
-        QPropertyAnimation *anim = new QPropertyAnimation(tab, "pos", tab);
-        anim->setDuration(130);
-        anim->setEasingCurve(QEasingCurve::OutCubic);
-        anim->setStartValue(tab->pos());
-        anim->setEndValue(QPoint(targetX, BookTab::TAB_Y));
-        anim->start(QAbstractAnimation::DeleteWhenStopped);
-    }
-
-    void animateTabsExcept(BookTab *except) {
-        int step = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
-        for (int i = 0; i < m_tabs.size(); i++) {
-            if (m_tabs[i] == except) continue;
-            animateTab(m_tabs[i], i * step);
-        }
+        repositionTabs(true);
     }
 
     void repositionTabs(bool animated) {
-        int step = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
-        for (int i = 0; i < m_tabs.size(); i++) {
-            if (animated) animateTab(m_tabs[i], i * step);
-            else m_tabs[i]->move(i * step, BookTab::TAB_Y);
+        int x = 0;
+        for (int i = 0; i < m_tabs.size(); ++i) {
+            BookTab *tab = m_tabs[i];
+            if (tab == m_draggedTab) {
+                x += BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
+                continue;
+            }
+            QPoint targetPos(x, BookTab::TAB_Y);
+            if (animated && tab->pos() != targetPos) {
+                QPropertyAnimation *anim = new QPropertyAnimation(tab, "pos", tab);
+                anim->setDuration(180);
+                anim->setEasingCurve(QEasingCurve::OutCubic);
+                anim->setStartValue(tab->pos());
+                anim->setEndValue(targetPos);
+                anim->start(QAbstractAnimation::DeleteWhenStopped);
+            } else {
+                tab->move(targetPos);
+            }
+            x += BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
         }
     }
 
-    void setIslandVisible(bool visible) {
-        m_islandVisible = visible;
-        if (visible) {
-            dynamicIsland->show();
-            islandToggleBtn->show();
-            dynamicIsland->raise();
-            islandToggleBtn->raise();
-            islandToggleBtn->setCollapsed(false);
-            animateIslandPosition(false);
-        } else {
-            dynamicIsland->hide();
-            islandToggleBtn->hide();
-        }
-    }
-
-    void updateIslandPosition(bool collapsed) {
+    void updateIslandPosition(bool animated) {
         if (!m_islandVisible) return;
+        bool collapsed = islandToggleBtn->isCollapsed();
         int centerX = width() / 2;
         int islandX = centerX - (dynamicIsland->width() / 2);
         int targetY = collapsed ? (-dynamicIsland->height() + 2) : 42;
 
-        dynamicIsland->move(islandX, targetY);
-        int toggleY = collapsed ? 38 : (dynamicIsland->y() + dynamicIsland->height() - 1);
-        islandToggleBtn->move(centerX - (islandToggleBtn->width() / 2), toggleY);
-        dynamicIsland->raise();
-        islandToggleBtn->raise();
+        if (!animated) {
+            dynamicIsland->move(islandX, targetY);
+            int toggleY = collapsed ? 38 : (dynamicIsland->y() + dynamicIsland->height() - 1);
+            islandToggleBtn->move(centerX - (islandToggleBtn->width() / 2), toggleY);
+            dynamicIsland->raise();
+            islandToggleBtn->raise();
+        } else {
+            animateIslandPosition(collapsed);
+        }
     }
 
     void animateIslandPosition(bool collapsed) {
@@ -1056,6 +903,7 @@ private slots:
         animIsland->setEasingCurve(QEasingCurve::OutCubic);
         animIsland->setStartValue(dynamicIsland->pos());
         animIsland->setEndValue(QPoint(islandX, endY));
+
         int toggleEndY = collapsed ? 38 : (endY + dynamicIsland->height() - 1);
         QPropertyAnimation *animBtn = new QPropertyAnimation(islandToggleBtn, "pos", this);
         animBtn->setDuration(220);
@@ -1067,104 +915,32 @@ private slots:
         animBtn->start(QAbstractAnimation::DeleteWhenStopped);
     }
 
-protected:
-    void resizeEvent(QResizeEvent *event) override {
-        QMainWindow::resizeEvent(event);
-        updateIslandPosition(false);
-
-        // حفظ الأبعاد التلقائية كلما قام المستخدم بتغيير حجم النافذة بالماوس
-        if (!isMaximized() && !isMinimized()) {
-            m_normalGeometry = geometry();
-        }
-    }
-
-    void moveEvent(QMoveEvent *event) override {
-        QMainWindow::moveEvent(event);
-
-        // حفظ الموقع التلقائي كلما قام المستخدم بسحب النافذة بالماوس
-        if (!isMaximized() && !isMinimized()) {
-            m_normalGeometry = geometry();
-        }
-    }
-
-    void mousePressEvent(QMouseEvent *event) override {
-        if (event->button() == Qt::LeftButton && event->position().y() < 38) {
-            m_windowDragStart = event->globalPosition().toPoint() - frameGeometry().topLeft();
-            m_draggingWindow  = true;
-            event->accept();
-        }
-    }
-    void mouseMoveEvent(QMouseEvent *event) override {
-        if (m_draggingWindow && (event->buttons() & Qt::LeftButton)) {
-            move(event->globalPosition().toPoint() - m_windowDragStart);
-            event->accept();
-        }
-    }
-    void mouseReleaseEvent(QMouseEvent *event) override {
-        if (event->button() == Qt::LeftButton) m_draggingWindow = false;
-    }
-
-    // دالة إغلاق النافذة مع أنيميشن تلاشي سلس
-    void closeEvent(QCloseEvent *event) override {
-        if (windowOpacity() > 0.0) {
-            event->ignore();
-            QPropertyAnimation *closeAnim = new QPropertyAnimation(this, "windowOpacity", this);
-            closeAnim->setDuration(250);
-            closeAnim->setStartValue(1.0);
-            closeAnim->setEndValue(0.0);
-            closeAnim->setEasingCurve(QEasingCurve::InOutQuad);
-            connect(closeAnim, &QPropertyAnimation::finished, this, &QWidget::close);
-            closeAnim->start(QAbstractAnimation::DeleteWhenStopped);
-        } else {
-            QMainWindow::closeEvent(event);
-        }
-    }
-
-    // دالة مراقبة تغيير حالة النافذة (مثل التصغير لشريط المهام) مع أنيميشن سلس
-    void changeEvent(QEvent *event) override {
-        if (event->type() == QEvent::WindowStateChange) {
-            if (isMinimized()) {
-                QPropertyAnimation *minAnim = new QPropertyAnimation(this, "windowOpacity", this);
-                minAnim->setDuration(150);
-                minAnim->setStartValue(1.0);
-                minAnim->setEndValue(0.0);
-                minAnim->setEasingCurve(QEasingCurve::InOutQuad);
-                minAnim->start(QAbstractAnimation::DeleteWhenStopped);
-            } else if (!isHidden() && windowOpacity() < 1.0) {
-                QPropertyAnimation *restoreAnim = new QPropertyAnimation(this, "windowOpacity", this);
-                restoreAnim->setDuration(200);
-                restoreAnim->setStartValue(0.0);
-                restoreAnim->setEndValue(1.0);
-                restoreAnim->setEasingCurve(QEasingCurve::InOutQuad);
-                restoreAnim->start(QAbstractAnimation::DeleteWhenStopped);
-            }
-        }
-        QWidget::changeEvent(event);
-    }
-
     void toggleMaximizedAnimated() {
+        if (m_isAnimatingMax) return;
+
         if (isMaximized()) {
-            // 1. حالة العودة إلى الحجم الطبيعي (Restore)
+            m_isAnimatingMax = true;
             QRect startGeom = geometry();
             QRect targetGeom = m_normalGeometry.isValid() ? m_normalGeometry : QRect(100, 100, 1100, 800);
 
             showNormal();
-            setGeometry(startGeom); // تثبيت النافذة مؤقتاً في حجم التكبير لتأدية الأنيميشن بسلاسة
+            setGeometry(startGeom);
 
             QPropertyAnimation *anim = new QPropertyAnimation(this, "geometry", this);
             anim->setDuration(200);
             anim->setStartValue(startGeom);
             anim->setEndValue(targetGeom);
             anim->setEasingCurve(QEasingCurve::InOutQuad);
+
+            connect(anim, &QPropertyAnimation::finished, this, [this]() {
+                m_isAnimatingMax = false;
+                if (btnMax) btnMax->setText(QString::fromUtf8("\uE922"));
+            });
+
             anim->start(QAbstractAnimation::DeleteWhenStopped);
-
-            if (btnMax) btnMax->setText(QString::fromUtf8("\uE922")); // أيقونة التكبير
-
         } else {
-            // 2. حالة التكبير (Maximize)
-            if (!isMaximized()) {
-                m_normalGeometry = geometry(); // حفظ الحجم والموقع الحاليين فوراً قبل التكبير
-            }
+            m_normalGeometry = geometry();
+            m_isAnimatingMax = true;
 
             QRect startGeom = geometry();
             QRect targetGeom = screen() ? screen()->availableGeometry() : QRect(0, 0, 1920, 1080);
@@ -1177,61 +953,225 @@ protected:
 
             connect(anim, &QPropertyAnimation::finished, this, [this]() {
                 showMaximized();
-                if (btnMax) btnMax->setText(QString::fromUtf8("\uE923")); // أيقونة الاستعادة
+                m_isAnimatingMax = false;
+                if (btnMax) btnMax->setText(QString::fromUtf8("\uE923"));
             });
 
             anim->start(QAbstractAnimation::DeleteWhenStopped);
         }
     }
 
-    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override {
-        MSG *msg = static_cast<MSG*>(message);
+    void setReadingTheme(ReadingTheme theme) {
+        m_currentTheme = theme;
+        QSettings settings("ModernPDFReader", "Settings");
+        settings.setValue("currentTheme", static_cast<int>(theme));
+        applyTheme();
+    }
 
-        // 1. معالجة تحريك وسحب حواف النافذة لتغيير الحجم
-        if (msg->message == WM_NCHITTEST && !isMaximized()) {
-            short x = (short)LOWORD(msg->lParam);
-            short y = (short)HIWORD(msg->lParam);
-            QPoint pos = mapFromGlobal(QPoint(x, y));
+    void applyTheme() {
+        QString headerBg, btnHover, textCol, windowBg;
 
-            const int border = 8; // هامش حواف تغيير الحجم (8 بكسل)
-
-            bool left   = pos.x() < border;
-            bool right  = pos.x() >= width() - border;
-            bool top    = pos.y() < border;
-            bool bottom = pos.y() >= height() - border;
-
-            if (top && left)     { *result = HTTOPLEFT;     return true; }
-            if (top && right)    { *result = HTTOPRIGHT;    return true; }
-            if (bottom && left)  { *result = HTBOTTOMLEFT;  return true; }
-            if (bottom && right) { *result = HTBOTTOMRIGHT; return true; }
-            if (left)            { *result = HTLEFT;        return true; }
-            if (right)           { *result = HTRIGHT;       return true; }
-            if (top)             { *result = HTTOP;         return true; }
-            if (bottom)          { *result = HTBOTTOM;      return true; }
+        switch (m_currentTheme) {
+            case ThemeLight:
+                headerBg = "#e1e1e1"; btnHover = "#d0d0d0"; textCol = "#1e1e1e"; windowBg = "#f3f3f3"; break;
+            case ThemeDark:
+                headerBg = "#1f1f1f"; btnHover = "#333333"; textCol = "#ffffff"; windowBg = "#121212"; break;
+            case ThemeSepia:
+                headerBg = "#e3d3bd"; btnHover = "#d6c3aa"; textCol = "#3e2723"; windowBg = "#f4ecd8"; break;
+            case ThemeNord:
+                headerBg = "#2e3440"; btnHover = "#3b4252"; textCol = "#eceff4"; windowBg = "#242933"; break;
         }
 
-        // 2. معالجة التلاشي والتصغير من شريط المهام
-        if (msg->message == WM_SYSCOMMAND) {
-            if ((msg->wParam & 0xFFF0) == SC_MINIMIZE) {
-                QPropertyAnimation *minAnim = new QPropertyAnimation(this, "windowOpacity", this);
-                minAnim->setDuration(150);
-                minAnim->setStartValue(1.0);
-                minAnim->setEndValue(0.0);
-                minAnim->setEasingCurve(QEasingCurve::InOutQuad);
+        header->setStyleSheet(QString("QWidget { background-color: %1; }").arg(headerBg));
+        centralWidget->setStyleSheet(QString("QWidget { background-color: %1; }").arg(windowBg));
 
-                connect(minAnim, &QPropertyAnimation::finished, this, [this]() {
-                    showMinimized();
-                    setWindowOpacity(1.0);
-                });
-                minAnim->start(QAbstractAnimation::DeleteWhenStopped);
-                if (result) {
-                    *result = 0;
-                }
-                return true;
+        QString winBtnStyle = QString(
+            "QPushButton { background: transparent; border: none; color: %1; font-family: 'Segoe MDL2 Assets'; font-size: 10px; }"
+            "QPushButton:hover { background-color: %2; }"
+        ).arg(textCol, btnHover);
+
+        btnMin->setStyleSheet(winBtnStyle);
+        btnMax->setStyleSheet(winBtnStyle);
+        btnClose->setStyleSheet(
+            "QPushButton { background: transparent; border: none; color: " + textCol + "; font-family: 'Segoe MDL2 Assets'; font-size: 10px; }"
+            "QPushButton:hover { background-color: #e81123; color: white; }"
+        );
+
+        menuBtn->setStyleSheet(QString(
+            "QPushButton { background: transparent; border: none; color: %1; font-size: 16px; font-weight: bold; border-radius: 4px; }"
+            "QPushButton:hover { background-color: %2; }"
+        ).arg(textCol, btnHover));
+
+        btnCloseUnpinned->setStyleSheet(QString(
+            "QPushButton { background: transparent; border: none; color: %1; font-size: 13px; border-radius: 4px; }"
+            "QPushButton:hover { background-color: %2; }"
+        ).arg(textCol, btnHover));
+
+        headerSep->setStyleSheet(QString("background-color: %1; border: none;").arg(btnHover));
+
+        btnHome->setTheme(m_currentTheme);
+        islandToggleBtn->updateTheme(m_currentTheme);
+        dynamicIsland->updateThemeStyle(m_currentTheme);
+
+        for (auto *tab : m_tabs) tab->setTheme(m_currentTheme);
+        for (auto *card : m_recentCards) card->updateTheme(m_currentTheme);
+
+        recentTitle->setStyleSheet(QString("color: %1;").arg(textCol));
+        btnClearHistory->setStyleSheet(QString(
+            "QPushButton { background-color: %1; color: %2; border: 1px solid %3; border-radius: 4px; font-size: 11px; }"
+            "QPushButton:hover { background-color: #e81123; color: white; border-color: #e81123; }"
+        ).arg(headerBg, textCol, btnHover));
+    }
+
+    void selectDefaultDirectory() {
+        QSettings settings("ModernPDFReader", "Settings");
+        QString currentDir = settings.value("defaultDir", "").toString();
+        QString dirPath = QFileDialog::getExistingDirectory(this, "Select Default Directory", currentDir);
+        if (!dirPath.isEmpty()) {
+            settings.setValue("defaultDir", dirPath);
+        }
+    }
+
+    void clearAllHistory() {
+        QSettings settings("ModernPDFReader", "Settings");
+        settings.remove("recentBooks");
+
+        for (auto *card : m_recentCards) delete card;
+        m_recentCards.clear();
+    }
+
+    void closeAllUnpinnedTabs() {
+        QVector<BookTab*> toClose;
+        for (auto *tab : m_tabs) {
+            if (!tab->isPinned()) toClose.append(tab);
+        }
+        for (auto *tab : toClose) {
+            closeTabByWidget(tab);
+        }
+    }
+
+    void togglePinTab(BookTab *tab) {
+        tab->setPinned(!tab->isPinned());
+    }
+
+    void loadRecentHistory() {
+        for (auto *card : m_recentCards) delete card;
+        m_recentCards.clear();
+
+        QSettings settings("ModernPDFReader", "Settings");
+        QStringList history = settings.value("recentBooks").toStringList();
+
+        int row = 0, col = 0;
+        for (const QString &item : history) {
+            QStringList parts = item.split("|");
+            if (parts.size() < 2) continue;
+            QString filePath = parts[0];
+            QString lastOpened = parts[1];
+
+            if (!QFileInfo::exists(filePath)) continue;
+
+            RecentCard *card = new RecentCard(filePath, lastOpened, cardsContainerWidget);
+            card->updateTheme(m_currentTheme);
+
+            connect(card, &RecentCard::clicked, this, &ModernPDFReader::openPDFFile);
+            connect(card, &RecentCard::deleteRequested, this, &ModernPDFReader::removeRecentBook);
+
+            recentGrid->addWidget(card, row, col);
+            m_recentCards.append(card);
+
+            col++;
+            if (col >= 4) {
+                col = 0;
+                row++;
             }
         }
+    }
 
-        return QWidget::nativeEvent(eventType, message, result);
+    void saveRecentHistory() {
+        QSettings settings("ModernPDFReader", "Settings");
+        QStringList history;
+        for (auto *card : m_recentCards) {
+            history.append(card->filePath() + "|" + QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm"));
+        }
+        settings.setValue("recentBooks", history);
+    }
+
+    void addRecentBook(const QString &filePath) {
+        removeRecentBook(filePath);
+        QSettings settings("ModernPDFReader", "Settings");
+        QStringList history = settings.value("recentBooks").toStringList();
+        history.prepend(filePath + "|" + QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm"));
+        if (history.size() > 12) history = history.mid(0, 12);
+        settings.setValue("recentBooks", history);
+        loadRecentHistory();
+    }
+
+    void removeRecentBook(const QString &filePath) {
+        QSettings settings("ModernPDFReader", "Settings");
+        QStringList history = settings.value("recentBooks").toStringList();
+        QStringList updated;
+        for (const QString &item : history) {
+            if (!item.startsWith(filePath + "|")) {
+                updated.append(item);
+            }
+        }
+        settings.setValue("recentBooks", updated);
+        loadRecentHistory();
+    }
+
+    void setIslandVisible(bool visible) {
+        m_islandVisible = visible;
+        if (visible) {
+            dynamicIsland->show();
+            islandToggleBtn->show();
+            updateIslandPosition(false);
+        } else {
+            dynamicIsland->hide();
+            islandToggleBtn->hide();
+        }
+    }
+
+protected:
+    void resizeEvent(QResizeEvent *event) override {
+        QMainWindow::resizeEvent(event);
+        updateIslandPosition(false);
+
+        if (!isMaximized() && !isMinimized() && !m_isAnimatingMax) {
+            m_normalGeometry = geometry();
+        }
+    }
+
+    void moveEvent(QMoveEvent *event) override {
+        QMainWindow::moveEvent(event);
+
+        if (!isMaximized() && !isMinimized() && !m_isAnimatingMax) {
+            m_normalGeometry = geometry();
+        }
+    }
+
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && header->rect().contains(header->mapFromGlobal(event->globalPosition().toPoint()))) {
+            m_windowDragStart = event->globalPosition().toPoint() - frameGeometry().topLeft();
+            m_draggingWindow = true;
+        }
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override {
+        if (m_draggingWindow && (event->buttons() & Qt::LeftButton)) {
+            move(event->globalPosition().toPoint() - m_windowDragStart);
+        }
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            m_draggingWindow = false;
+        }
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent *event) override {
+        if (header->rect().contains(header->mapFromGlobal(event->globalPosition().toPoint()))) {
+            toggleMaximizedAnimated();
+        }
     }
 
 private:
@@ -1259,6 +1199,7 @@ private:
     
     bool                       m_islandVisible;
     ReadingTheme               m_currentTheme;
+
     QVector<BookTab*>          m_tabs;
     QVector<QWidget*>          m_views;
     QVector<RecentCard*>       m_recentCards;
@@ -1267,8 +1208,10 @@ private:
     bool                       m_draggingWindow;
     BookTab                   *m_draggedTab;
     int                        m_dragOffsetX;
-    QRect                      m_normalGeometry; // متغير حفظ الحجم والموقع العادي
     QPropertyAnimation        *m_windowAnim;
+
+    QRect                      m_normalGeometry;
+    bool                       m_isAnimatingMax = false;
 };
 
 int main(int argc, char *argv[]) {

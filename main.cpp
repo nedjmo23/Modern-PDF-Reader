@@ -1,4 +1,4 @@
-// main.cpp - Added Reading Themes, Pin Tabs & Close Unpinned Tabs
+// main.cpp - Modern PDF Reader with Persistent Normal Geometry & Smooth Animations
 #include <QApplication>
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -8,6 +8,8 @@
 #include <QGridLayout>
 #include <QPushButton>
 #include <QMouseEvent>
+#include <QResizeEvent>
+#include <QMoveEvent>
 #include <QFileInfo>
 #include <QPainter>
 #include <QLabel>
@@ -23,6 +25,7 @@
 #include <QScrollArea>
 #include <QScroller>
 #include <QTimer>
+#include <QScreen>
 #include <windows.h>
 
 // أنماط ألوان القراءة
@@ -78,13 +81,14 @@ protected:
         p.setRenderHint(QPainter::Antialiasing);
         bool isDark = (m_theme == ThemeDark || m_theme == ThemeNord);
         p.setPen(QPen(isDark ? Qt::white : QColor(30, 30, 30), 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-
         int cx = width() / 2, cy = height() / 2;
         QPainterPath path;
         if (m_collapsed) {
-            path.moveTo(cx - 4, cy - 2); path.lineTo(cx, cy + 2); path.lineTo(cx + 4, cy - 2);
+            path.moveTo(cx - 4, cy - 2);
+            path.lineTo(cx, cy + 2); path.lineTo(cx + 4, cy - 2);
         } else {
-            path.moveTo(cx - 4, cy + 2); path.lineTo(cx, cy - 2); path.lineTo(cx + 4, cy + 2);
+            path.moveTo(cx - 4, cy + 2);
+            path.lineTo(cx, cy - 2); path.lineTo(cx + 4, cy + 2);
         }
         p.drawPath(path);
     }
@@ -101,7 +105,6 @@ class DynamicIsland : public QWidget {
     Q_OBJECT
 public:
     enum ViewMode { Continuous = 0, SinglePage = 1, TwoPages = 2 };
-
     explicit DynamicIsland(QWidget *parent = nullptr) 
         : QWidget(parent), m_currentViewMode(Continuous), m_rotationAngle(0), m_nightMode(false), m_dimMode(false) 
     {
@@ -122,7 +125,6 @@ public:
         QPushButton *btnDown = new QPushButton("▼", this);
         btnUp->setFixedSize(16, 12);
         btnDown->setFixedSize(16, 12);
-        
         QString arrowStyle = "QPushButton { font-size: 8px; color: #888888; padding:0px; }"
                             "QPushButton:hover { color: #007acc; background: transparent; }";
         btnUp->setStyleSheet(arrowStyle);
@@ -137,12 +139,10 @@ public:
 
         sep1 = createSeparator();
         layout->addWidget(sep1);
-
         QPushButton *btnZoomOut = new QPushButton("—", this);
         QPushButton *btnZoomIn = new QPushButton("+", this);
         btnZoomOut->setFixedSize(20, 20);
         btnZoomIn->setFixedSize(20, 20);
-
         zoomLabel = new QLabel("100%", this);
 
         layout->addWidget(btnZoomOut);
@@ -168,7 +168,6 @@ public:
         btnNightMode->setToolTip("Invert PDF Colors");
         connect(btnNightMode, &QPushButton::clicked, this, &DynamicIsland::toggleNightMode);
         layout->addWidget(btnNightMode);
-
         btnDimMode = new QPushButton("🔆", this);
         btnDimMode->setFixedSize(24, 24);
         btnDimMode->setToolTip("Dim Background / Focus Mode");
@@ -253,7 +252,6 @@ public:
     static const int TAB_HEIGHT  = 30;
     static const int TAB_SPACING = 3;
     static const int TAB_Y       = 4;
-
     BookTab(const QString &title, const QString &filePath, QWidget *parent = nullptr)
         : QWidget(parent), m_title(title), m_filePath(filePath), m_selected(false),
           m_hovered(false), m_dragging(false), m_pinned(false), m_theme(ThemeDark)
@@ -302,7 +300,6 @@ protected:
     void paintEvent(QPaintEvent *) override {
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
-
         QColor bg;
         switch (m_theme) {
             case ThemeLight: bg = m_selected ? QColor(255, 255, 255) : (m_hovered ? QColor(225, 225, 225) : QColor(210, 210, 210)); break;
@@ -314,7 +311,6 @@ protected:
         QPainterPath path;
         path.addRoundedRect(1, 1, width() - 2, height() - 1, 7, 7);
         p.fillPath(path, bg);
-
         if (m_selected) {
             p.setPen(QPen(QColor(0, 122, 204), 2));
             p.drawLine(8, height() - 1, width() - 8, height() - 1);
@@ -327,9 +323,8 @@ protected:
         p.setFont(font);
 
         int textLeft = m_pinned ? 22 : 8;
-        int textWidth = m_pinned ? (width() - 28) : (width() - 28);
+        int textWidth = width() - 28;
         QRect textRect(textLeft, 0, textWidth, height());
-
         if (m_pinned) {
             p.drawText(6, height() / 2 + 4, "📌");
         }
@@ -349,7 +344,6 @@ protected:
             QAction *closeUnpinnedAction = contextMenu.addAction("🧹 Close Unpinned Tabs");
             QAction *closeAction = contextMenu.addAction("✕ Close Tab");
 
-            // تنفيذ الأوامر بأمان بعد اختفاء القائمة المنبثقة لتجنب انهيار الذاكرة
             connect(pinAction, &QAction::triggered, this, [this]() { 
                 QTimer::singleShot(0, this, [this]() { emit pinToggled(this); });
             });
@@ -359,7 +353,6 @@ protected:
             connect(closeAction, &QAction::triggered, this, [this]() { 
                 QTimer::singleShot(0, this, [this]() { emit closeRequested(); });
             });
-
             contextMenu.exec(event->globalPosition().toPoint());
         }
     }
@@ -436,7 +429,6 @@ public:
         connect(deleteBtn, &QPushButton::clicked, this, [this](bool){
             emit deleteRequested(m_filePath);
         });
-
         updateTheme(ThemeDark);
     }
 
@@ -552,12 +544,15 @@ public:
         resize(1100, 800);
         setMinimumSize(800, 600);
 
+        // التأسيس المبدئي لأبعاد النافذة العادية
+        m_normalGeometry = QRect(100, 100, 1100, 800);
+
         // تفعيل استجابة شريط المهام للتصغير في ويندوز
         HWND hwnd = reinterpret_cast<HWND>(this->winId());
         DWORD style = GetWindowLong(hwnd, GWL_STYLE);
         SetWindowLong(hwnd, GWL_STYLE, style | WS_MINIMIZEBOX);
         SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
-        
+
         // استعادة الثيم المحفوظ مسبقاً عند الفتح
         QSettings settings("ModernPDFReader", "Settings");
         int savedTheme = settings.value("currentTheme", ThemeDark).toInt();
@@ -565,7 +560,7 @@ public:
         
         // إعداد أنيميشن ظهور النافذة بسلاسة
         m_windowAnim = new QPropertyAnimation(this, "windowOpacity", this);
-        m_windowAnim->setDuration(300); // مدة الأنيميشن بالميلي ثانية
+        m_windowAnim->setDuration(300);
         m_windowAnim->setStartValue(0.0);
         m_windowAnim->setEndValue(1.0);
         m_windowAnim->setEasingCurve(QEasingCurve::InOutQuad);
@@ -586,13 +581,11 @@ public:
         menuBtn = new QPushButton("⋮", this);
         menuBtn->setFixedSize(28, 28);
         menuBtn->setCursor(Qt::PointingHandCursor);
-
         mainMenu = new QMenu(this);
         QAction *openAction = mainMenu->addAction("📁 Open PDF");
         connect(openAction, &QAction::triggered, this, &ModernPDFReader::openPDFFileDialog);
 
         themeMenu = mainMenu->addMenu("🎨 Themes");
-        
         QAction *actLight = themeMenu->addAction("☀️ Light Theme");
         QAction *actDark  = themeMenu->addAction("🌙 Dark Theme");
         QAction *actSepia = themeMenu->addAction("📜 Sepia Theme (Classic)");
@@ -647,7 +640,7 @@ public:
         btnClose = new QPushButton(this);
         btnClose->setFont(iconFont);
         btnClose->setText(QString::fromUtf8("\uE8BB"));
-        
+
         connect(btnMin, &QPushButton::clicked, this, [this]() {
             QPropertyAnimation *minAnim = new QPropertyAnimation(this, "windowOpacity", this);
             minAnim->setDuration(150);
@@ -660,6 +653,7 @@ public:
             });
             minAnim->start(QAbstractAnimation::DeleteWhenStopped);
         });
+
         connect(btnMax, &QPushButton::clicked, this, &ModernPDFReader::toggleMaximizedAnimated);
         connect(btnClose, &QPushButton::clicked, this, &ModernPDFReader::close);
         
@@ -732,11 +726,8 @@ private slots:
 
     void setReadingTheme(ReadingTheme theme) {
         m_currentTheme = theme;
-
-        // حفظ الثيم المختار حالياً ليبقى عند إعادة الفتح
         QSettings settings("ModernPDFReader", "Settings");
         settings.setValue("currentTheme", m_currentTheme);
-        
         applyTheme();
     }
 
@@ -756,31 +747,26 @@ private slots:
             "QPushButton { background: transparent; border: none; color: %1; font-size: 18px; font-weight: bold; border-radius: 4px; }"
             "QPushButton:hover { background-color: rgba(150, 150, 150, 0.2); }"
         ).arg(textColor));
-
         mainMenu->setStyleSheet(
             "QMenu { background-color: #2d2d2d; color: #ffffff; border: 1px solid #3d3d3d; padding: 4px; font-size: 13px; }"
             "QMenu::item { padding: 5px 20px; border-radius: 3px; }"
             "QMenu::item:selected { background-color: #007acc; }"
         );
-
         btnCloseUnpinned->setStyleSheet(QString(
             "QPushButton { background: transparent; color: %1; border: none; font-size: 14px; border-radius: 4px; }"
             "QPushButton:hover { background-color: rgba(150, 150, 150, 0.2); }"
         ).arg(textColor));
-
         QString btnStyle = QString("QPushButton { background: transparent; color: %1; border: none; font-size: 12px; width: 38px; height: 28px; }"
                            "QPushButton:hover { background-color: rgba(150, 150, 150, 0.2); }").arg(textColor);
         btnMin->setStyleSheet(btnStyle);
         btnMax->setStyleSheet(btnStyle);
         btnClose->setStyleSheet("QPushButton { background: transparent; color: #aaaaaa; border: none; font-size: 12px; width: 38px; height: 28px; }"
                                "QPushButton:hover { background-color: #e81123; color: white; }");
-
         recentTitle->setStyleSheet(QString("color: %1;").arg(textColor));
         btnClearHistory->setStyleSheet(
             "QPushButton { background-color: rgba(150, 150, 150, 0.15); color: #cccccc; border: 1px solid rgba(150, 150, 150, 0.3); border-radius: 6px; font-size: 11px; }"
             "QPushButton:hover { background-color: #e81123; color: white; border-color: #e81123; }"
         );
-
         btnHome->setTheme(m_currentTheme);
         dynamicIsland->updateThemeStyle(m_currentTheme);
         islandToggleBtn->updateTheme(m_currentTheme);
@@ -802,7 +788,6 @@ private slots:
         int row = 0, col = 0;
         for (const QString &path : recentFiles) {
             if (!QFile::exists(path)) continue;
-
             QString timeStr = settings.value("time_" + path, "Recently").toString();
             RecentCard *card = new RecentCard(path, timeStr, cardsContainerWidget);
             card->updateTheme(m_currentTheme);
@@ -866,18 +851,15 @@ private slots:
         }
 
         saveToRecentHistory(filePath);
-
         QWidget *viewContainer = new QWidget(this);
         QVBoxLayout *layout = new QVBoxLayout(viewContainer);
         layout->setContentsMargins(0, 0, 0, 0);
-
         QLabel *label = new QLabel("MuPDF Engine view for: " + QFileInfo(filePath).fileName(), viewContainer);
         label->setAlignment(Qt::AlignCenter);
         label->setStyleSheet("font-size: 20px;");
         layout->addWidget(label);
 
         stackedWidget->addWidget(viewContainer);
-
         BookTab *tab = new BookTab(QFileInfo(filePath).fileName(), filePath, tabsContainer);
         tab->setTheme(m_currentTheme);
         tab->show();
@@ -900,8 +882,6 @@ private slots:
 
     void togglePinTab(BookTab *tab) {
         tab->setPinned(!tab->isPinned());
-        
-        // إعادة ترتيب التبويبات بحيث تكون المثبتة في اليسار
         m_tabs.removeAll(tab);
         int insertIndex = 0;
         if (tab->isPinned()) {
@@ -987,16 +967,13 @@ private slots:
 
     void onDragMoved(BookTab *tab, int globalX) {
         if (!m_draggedTab || m_draggedTab != tab) return;
-
         int localX = tabsContainer->mapFromGlobal(QPoint(globalX, 0)).x() - m_dragOffsetX;
         localX = qBound(0, localX, tabsContainer->width() - BookTab::TAB_WIDTH);
         tab->move(localX, BookTab::TAB_Y);
-
         int step     = BookTab::TAB_WIDTH + BookTab::TAB_SPACING;
         int centerX  = localX + BookTab::TAB_WIDTH / 2;
         int newIndex = qBound(0, centerX / step, m_tabs.size() - 1);
         int oldIndex = m_tabs.indexOf(tab);
-
         if (newIndex != oldIndex && !m_tabs[newIndex]->isPinned()) {
             m_tabs.removeAt(oldIndex);
             m_views.insert(newIndex, m_views.takeAt(oldIndex));
@@ -1070,7 +1047,6 @@ private slots:
 
     void animateIslandPosition(bool collapsed) {
         if (!m_islandVisible) return;
-
         int centerX = width() / 2;
         int islandX = centerX - (dynamicIsland->width() / 2);
         int endY = collapsed ? (-dynamicIsland->height() + 2) : 42;
@@ -1080,7 +1056,6 @@ private slots:
         animIsland->setEasingCurve(QEasingCurve::OutCubic);
         animIsland->setStartValue(dynamicIsland->pos());
         animIsland->setEndValue(QPoint(islandX, endY));
-
         int toggleEndY = collapsed ? 38 : (endY + dynamicIsland->height() - 1);
         QPropertyAnimation *animBtn = new QPropertyAnimation(islandToggleBtn, "pos", this);
         animBtn->setDuration(220);
@@ -1096,6 +1071,20 @@ protected:
     void resizeEvent(QResizeEvent *event) override {
         QMainWindow::resizeEvent(event);
         updateIslandPosition(false);
+
+        // حفظ الأبعاد التلقائية كلما قام المستخدم بتغيير حجم النافذة بالماوس
+        if (!isMaximized() && !isMinimized()) {
+            m_normalGeometry = geometry();
+        }
+    }
+
+    void moveEvent(QMoveEvent *event) override {
+        QMainWindow::moveEvent(event);
+
+        // حفظ الموقع التلقائي كلما قام المستخدم بسحب النافذة بالماوس
+        if (!isMaximized() && !isMinimized()) {
+            m_normalGeometry = geometry();
+        }
     }
 
     void mousePressEvent(QMouseEvent *event) override {
@@ -1118,14 +1107,12 @@ protected:
     // دالة إغلاق النافذة مع أنيميشن تلاشي سلس
     void closeEvent(QCloseEvent *event) override {
         if (windowOpacity() > 0.0) {
-            event->ignore(); // منع الإغلاق الفوري المؤقت
+            event->ignore();
             QPropertyAnimation *closeAnim = new QPropertyAnimation(this, "windowOpacity", this);
-            closeAnim->setDuration(250); // مدة التلاشي (ربع ثانية)
+            closeAnim->setDuration(250);
             closeAnim->setStartValue(1.0);
             closeAnim->setEndValue(0.0);
             closeAnim->setEasingCurve(QEasingCurve::InOutQuad);
-            
-            // عند انتهاء الأنيميشن، قم بإغلاق البرنامج فعلياً
             connect(closeAnim, &QPropertyAnimation::finished, this, &QWidget::close);
             closeAnim->start(QAbstractAnimation::DeleteWhenStopped);
         } else {
@@ -1137,7 +1124,6 @@ protected:
     void changeEvent(QEvent *event) override {
         if (event->type() == QEvent::WindowStateChange) {
             if (isMinimized()) {
-                // إذا أراد المستخدم تصغير النافذة، نقوم بتخفيض الشفافية بسلاسة أولاً
                 QPropertyAnimation *minAnim = new QPropertyAnimation(this, "windowOpacity", this);
                 minAnim->setDuration(150);
                 minAnim->setStartValue(1.0);
@@ -1145,7 +1131,6 @@ protected:
                 minAnim->setEasingCurve(QEasingCurve::InOutQuad);
                 minAnim->start(QAbstractAnimation::DeleteWhenStopped);
             } else if (!isHidden() && windowOpacity() < 1.0) {
-                // عند العودة من شريط المهام (استعادة النافذة)، نعيد الشفافية بسلاسة
                 QPropertyAnimation *restoreAnim = new QPropertyAnimation(this, "windowOpacity", this);
                 restoreAnim->setDuration(200);
                 restoreAnim->setStartValue(0.0);
@@ -1158,42 +1143,51 @@ protected:
     }
 
     void toggleMaximizedAnimated() {
-        QRect targetGeometry;
-        QRect startGeometry = this->geometry();
-
         if (isMaximized()) {
-            // إذا كانت مكبرة، سنحدد الحجم العادي (مثلاً 1100x800) ونظهرها بشكل طبيعي أولاً
+            // 1. حالة العودة إلى الحجم الطبيعي (Restore)
+            QRect startGeom = geometry();
+            QRect targetGeom = m_normalGeometry.isValid() ? m_normalGeometry : QRect(100, 100, 1100, 800);
+
             showNormal();
-            targetGeometry = QRect(x(), y(), 1100, 800); // يمكنك تعديل الحجم العادي حسب رغبتك
-            
-            // أنيميشن الانكماش بسلاسة للحجم العادي
-            QPropertyAnimation *restoreAnim = new QPropertyAnimation(this, "geometry", this);
-            restoreAnim->setDuration(250);
-            restoreAnim->setStartValue(startGeometry);
-            restoreAnim->setEndValue(targetGeometry);
-            restoreAnim->setEasingCurve(QEasingCurve::InOutQuad);
-            restoreAnim->start(QAbstractAnimation::DeleteWhenStopped);
+            setGeometry(startGeom); // تثبيت النافذة مؤقتاً في حجم التكبير لتأدية الأنيميشن بسلاسة
+
+            QPropertyAnimation *anim = new QPropertyAnimation(this, "geometry", this);
+            anim->setDuration(200);
+            anim->setStartValue(startGeom);
+            anim->setEndValue(targetGeom);
+            anim->setEasingCurve(QEasingCurve::InOutQuad);
+            anim->start(QAbstractAnimation::DeleteWhenStopped);
+
+            if (btnMax) btnMax->setText(QString::fromUtf8("\uE922")); // أيقونة التكبير
+
         } else {
-            // إذا كانت عادية، سنكبرها لملء الشاشة المتاحة بانيميشن سلس
-            targetGeometry = screen()->availableGeometry();
-            
-            QPropertyAnimation *sizeAnim = new QPropertyAnimation(this, "geometry", this);
-            sizeAnim->setDuration(250);
-            sizeAnim->setStartValue(startGeometry);
-            sizeAnim->setEndValue(targetGeometry);
-            sizeAnim->setEasingCurve(QEasingCurve::InOutQuad);
-            sizeAnim->start(QAbstractAnimation::DeleteWhenStopped);
-            
-            connect(sizeAnim, &QPropertyAnimation::finished, this, [this]() {
+            // 2. حالة التكبير (Maximize)
+            if (!isMaximized()) {
+                m_normalGeometry = geometry(); // حفظ الحجم والموقع الحاليين فوراً قبل التكبير
+            }
+
+            QRect startGeom = geometry();
+            QRect targetGeom = screen() ? screen()->availableGeometry() : QRect(0, 0, 1920, 1080);
+
+            QPropertyAnimation *anim = new QPropertyAnimation(this, "geometry", this);
+            anim->setDuration(200);
+            anim->setStartValue(startGeom);
+            anim->setEndValue(targetGeom);
+            anim->setEasingCurve(QEasingCurve::InOutQuad);
+
+            connect(anim, &QPropertyAnimation::finished, this, [this]() {
                 showMaximized();
+                if (btnMax) btnMax->setText(QString::fromUtf8("\uE923")); // أيقونة الاستعادة
             });
+
+            anim->start(QAbstractAnimation::DeleteWhenStopped);
         }
     }
 
     bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override {
         MSG *msg = static_cast<MSG*>(message);
 
-        // 1. معالجة تحريك وسحب حواف النافذة لتغيير الحجم (إذا لم تكن النافذة مكبرة بالكامل)
+        // 1. معالجة تحريك وسحب حواف النافذة لتغيير الحجم
         if (msg->message == WM_NCHITTEST && !isMaximized()) {
             short x = (short)LOWORD(msg->lParam);
             short y = (short)HIWORD(msg->lParam);
@@ -1229,7 +1223,6 @@ protected:
                     showMinimized();
                     setWindowOpacity(1.0);
                 });
-
                 minAnim->start(QAbstractAnimation::DeleteWhenStopped);
                 if (result) {
                     *result = 0;
@@ -1266,7 +1259,6 @@ private:
     
     bool                       m_islandVisible;
     ReadingTheme               m_currentTheme;
-
     QVector<BookTab*>          m_tabs;
     QVector<QWidget*>          m_views;
     QVector<RecentCard*>       m_recentCards;
@@ -1275,6 +1267,7 @@ private:
     bool                       m_draggingWindow;
     BookTab                   *m_draggedTab;
     int                        m_dragOffsetX;
+    QRect                      m_normalGeometry; // متغير حفظ الحجم والموقع العادي
     QPropertyAnimation        *m_windowAnim;
 };
 

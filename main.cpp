@@ -641,7 +641,18 @@ public:
         btnClose->setFont(iconFont);
         btnClose->setText(QString::fromUtf8("\uE8BB"));
         
-        connect(btnMin,   &QPushButton::clicked, this, &ModernPDFReader::showMinimized);
+        connect(btnMin, &QPushButton::clicked, this, [this]() {
+            QPropertyAnimation *minAnim = new QPropertyAnimation(this, "windowOpacity", this);
+            minAnim->setDuration(150);
+            minAnim->setStartValue(1.0);
+            minAnim->setEndValue(0.0);
+            minAnim->setEasingCurve(QEasingCurve::InOutQuad);
+            connect(minAnim, &QPropertyAnimation::finished, this, [this]() {
+                showMinimized();
+                setWindowOpacity(1.0);
+            });
+            minAnim->start(QAbstractAnimation::DeleteWhenStopped);
+        });
         connect(btnMax, &QPushButton::clicked, this, &ModernPDFReader::toggleMaximizedAnimated);
         connect(btnClose, &QPushButton::clicked, this, &ModernPDFReader::close);
         
@@ -1139,31 +1150,33 @@ protected:
         QWidget::changeEvent(event);
     }
 
-    // دالة مخصصة للتحكم بالتكبير والتصغير الحركي (Maximize/Restore)
     void toggleMaximizedAnimated() {
         QRect targetGeometry;
         QRect startGeometry = this->geometry();
 
         if (isMaximized()) {
-            // إذا كانت مكبرة، سنعيدها لحجمها العادي السابق
+            // إذا كانت مكبرة، سنحدد الحجم العادي (مثلاً 1100x800) ونظهرها بشكل طبيعي أولاً
             showNormal();
-            // يمكنك تحديد الحجم العادي الافتراضي أو الاعتماد على نافذة النظام
-            return;
+            targetGeometry = QRect(x(), y(), 1100, 800); // يمكنك تعديل الحجم العادي حسب رغبتك
+            
+            // أنيميشن الانكماش بسلاسة للحجم العادي
+            QPropertyAnimation *restoreAnim = new QPropertyAnimation(this, "geometry", this);
+            restoreAnim->setDuration(250);
+            restoreAnim->setStartValue(startGeometry);
+            restoreAnim->setEndValue(targetGeometry);
+            restoreAnim->setEasingCurve(QEasingCurve::InOutQuad);
+            restoreAnim->start(QAbstractAnimation::DeleteWhenStopped);
         } else {
-            // إذا كانت عادية، سنقوم بتكبيرها لتملأ الشاشة المتاحة (بدون إخفاء شريط المهام)
+            // إذا كانت عادية، سنكبرها لملء الشاشة المتاحة بانيميشن سلس
             targetGeometry = screen()->availableGeometry();
-        }
-
-        // أنيميشن تغيير الحجم بسلاسة
-        QPropertyAnimation *sizeAnim = new QPropertyAnimation(this, "geometry", this);
-        sizeAnim->setDuration(250); // مدة الحركة (ربع ثانية)
-        sizeAnim->setStartValue(startGeometry);
-        sizeAnim->setEndValue(targetGeometry);
-        sizeAnim->setEasingCurve(QEasingCurve::InOutQuad);
-        
-        if (!isMaximized()) {
+            
+            QPropertyAnimation *sizeAnim = new QPropertyAnimation(this, "geometry", this);
+            sizeAnim->setDuration(250);
+            sizeAnim->setStartValue(startGeometry);
+            sizeAnim->setEndValue(targetGeometry);
+            sizeAnim->setEasingCurve(QEasingCurve::InOutQuad);
             sizeAnim->start(QAbstractAnimation::DeleteWhenStopped);
-            // بعد انتهاء الأنيميشن، نجعل حالة النافذة رسمياً Maximize
+            
             connect(sizeAnim, &QPropertyAnimation::finished, this, [this]() {
                 showMaximized();
             });

@@ -1192,30 +1192,55 @@ protected:
 
     bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override {
         MSG *msg = static_cast<MSG*>(message);
+
+        // 1. معالجة تحريك وسحب حواف النافذة لتغيير الحجم (إذا لم تكن النافذة مكبرة بالكامل)
+        if (msg->message == WM_NCHITTEST && !isMaximized()) {
+            short x = (short)LOWORD(msg->lParam);
+            short y = (short)HIWORD(msg->lParam);
+            QPoint pos = mapFromGlobal(QPoint(x, y));
+
+            const int border = 8; // هامش حواف تغيير الحجم (8 بكسل)
+
+            bool left   = pos.x() < border;
+            bool right  = pos.x() >= width() - border;
+            bool top    = pos.y() < border;
+            bool bottom = pos.y() >= height() - border;
+
+            if (top && left)     { *result = HTTOPLEFT;     return true; }
+            if (top && right)    { *result = HTTOPRIGHT;    return true; }
+            if (bottom && left)  { *result = HTBOTTOMLEFT;  return true; }
+            if (bottom && right) { *result = HTBOTTOMRIGHT; return true; }
+            if (left)            { *result = HTLEFT;        return true; }
+            if (right)           { *result = HTRIGHT;       return true; }
+            if (top)             { *result = HTTOP;         return true; }
+            if (bottom)          { *result = HTBOTTOM;      return true; }
+        }
+
+        // 2. معالجة التلاشي والتصغير من شريط المهام
         if (msg->message == WM_SYSCOMMAND) {
-            // التحقق مما إذا كان المستخدم يضغط على أيقونة شريط المهام لتصغير النافذة
             if ((msg->wParam & 0xFFF0) == SC_MINIMIZE) {
-                // تشغيل أنيميشن التلاشي والتصغير بسلاسة
                 QPropertyAnimation *minAnim = new QPropertyAnimation(this, "windowOpacity", this);
                 minAnim->setDuration(150);
                 minAnim->setStartValue(1.0);
                 minAnim->setEndValue(0.0);
                 minAnim->setEasingCurve(QEasingCurve::InOutQuad);
-                
+
                 connect(minAnim, &QPropertyAnimation::finished, this, [this]() {
-                    showMinimized(); // التصغير الفعلي لشريط المهام
-                    setWindowOpacity(1.0); // إعادة الشفافية لوضعها الطبيعي
+                    showMinimized();
+                    setWindowOpacity(1.0);
                 });
-                
+
                 minAnim->start(QAbstractAnimation::DeleteWhenStopped);
                 if (result) {
                     *result = 0;
                 }
-                return true; // تم معالجة الحدث بنجاح
+                return true;
             }
         }
+
         return QWidget::nativeEvent(eventType, message, result);
     }
+
 private:
     QWidget                   *centralWidget;
     QWidget                   *header;

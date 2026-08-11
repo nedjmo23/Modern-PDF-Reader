@@ -23,10 +23,8 @@
 #include <QScrollArea>
 #include <QScroller>
 #include <QTimer>
-#if defined(Q_OS_WIN)
 #include <windows.h>
-#include <windowsx.h>
-#endif
+
 // أنماط ألوان القراءة
 enum ReadingTheme { ThemeLight, ThemeDark, ThemeSepia, ThemeNord };
 
@@ -1160,42 +1158,35 @@ protected:
     }
 
     void toggleMaximizedAnimated() {
+        QRect targetGeometry;
+        QRect startGeometry = this->geometry();
+
         if (isMaximized()) {
-            // 1. حالة العودة إلى الحجم الطبيعي (Restore)
-            QRect startGeom = geometry();
-            
-            // استخدام m_normalGeometry المحفوظة بدلاً من normalGeometry() الخاصة بـ Qt
-            QRect targetGeom = m_normalGeometry.isValid() ? m_normalGeometry : QRect(100, 100, 1100, 800);
-
+            // إذا كانت مكبرة، سنحدد الحجم العادي (مثلاً 1100x800) ونظهرها بشكل طبيعي أولاً
             showNormal();
-            setGeometry(startGeom); // تثبيت النافذة مؤقتاً في حجم التكبير لتأدية الأنيميشن بسلاسة
-
-            QPropertyAnimation *anim = new QPropertyAnimation(this, "geometry", this);
-            anim->setDuration(200);
-            anim->setStartValue(startGeom);
-            anim->setEndValue(targetGeom); // العودة بدقة إلى الحجم والموقع اللذين حددتهما بالماوس
-            anim->setEasingCurve(QEasingCurve::InOutQuad);
-            anim->start(QAbstractAnimation::DeleteWhenStopped);
-
+            targetGeometry = QRect(x(), y(), 1100, 800); // يمكنك تعديل الحجم العادي حسب رغبتك
+            
+            // أنيميشن الانكماش بسلاسة للحجم العادي
+            QPropertyAnimation *restoreAnim = new QPropertyAnimation(this, "geometry", this);
+            restoreAnim->setDuration(250);
+            restoreAnim->setStartValue(startGeometry);
+            restoreAnim->setEndValue(targetGeometry);
+            restoreAnim->setEasingCurve(QEasingCurve::InOutQuad);
+            restoreAnim->start(QAbstractAnimation::DeleteWhenStopped);
         } else {
-            // 2. حالة التكبير (Maximize)
-            // حفظ الحجم والموقع الحاليين اللذين قمت بسحبهما يدوياً قبل بدء أنيميشن التكبير
-            m_normalGeometry = geometry();
-
-            QRect startGeom = geometry();
-            QRect targetGeom = screen()->availableGeometry(); // مساحة الشاشة المتاحة
-
-            QPropertyAnimation *anim = new QPropertyAnimation(this, "geometry", this);
-            anim->setDuration(200);
-            anim->setStartValue(startGeom);
-            anim->setEndValue(targetGeom);
-            anim->setEasingCurve(QEasingCurve::InOutQuad);
-
-            connect(anim, &QPropertyAnimation::finished, this, [this]() {
+            // إذا كانت عادية، سنكبرها لملء الشاشة المتاحة بانيميشن سلس
+            targetGeometry = screen()->availableGeometry();
+            
+            QPropertyAnimation *sizeAnim = new QPropertyAnimation(this, "geometry", this);
+            sizeAnim->setDuration(250);
+            sizeAnim->setStartValue(startGeometry);
+            sizeAnim->setEndValue(targetGeometry);
+            sizeAnim->setEasingCurve(QEasingCurve::InOutQuad);
+            sizeAnim->start(QAbstractAnimation::DeleteWhenStopped);
+            
+            connect(sizeAnim, &QPropertyAnimation::finished, this, [this]() {
                 showMaximized();
             });
-
-            anim->start(QAbstractAnimation::DeleteWhenStopped);
         }
     }
 

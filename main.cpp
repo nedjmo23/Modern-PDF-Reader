@@ -1183,6 +1183,31 @@ protected:
         }
     }
 
+    bool nativeEvent(const QByteArray &eventType, void *message, long *result) override {
+        MSG *msg = static_cast<MSG*>(message);
+        if (msg->message == WM_SYSCOMMAND) {
+            // التحقق مما إذا كان المستخدم يضغط على أيقونة شريط المهام لتصغير النافذة
+            if ((msg->wParam & 0xFFF0) == SC_MINIMIZE) {
+                // هنا نقوم بتشغيل أنيميشن التلاشي والتصغير الذي أعجبك
+                QPropertyAnimation *minAnim = new QPropertyAnimation(this, "windowOpacity", this);
+                minAnim->setDuration(150);
+                minAnim->setStartValue(1.0);
+                minAnim->setEndValue(0.0);
+                minAnim->setEasingCurve(QEasingCurve::InOutQuad);
+                
+                connect(minAnim, &QPropertyAnimation::finished, this, [this]() {
+                    showMinimized(); // التصغير الفعلي لشريط المهام
+                    setWindowOpacity(1.0); // إعادة الشفافية لوضعها الطبيعي
+                });
+                
+                minAnim->start(QAbstractAnimation::DeleteWhenStopped);
+                *result = 0;
+                return true; // تم التقاط الحدث ومعالجته بنجاح
+            }
+        }
+        return QWidget::nativeEvent(eventType, message, result);
+    }
+
 private:
     QWidget                   *centralWidget;
     QWidget                   *header;

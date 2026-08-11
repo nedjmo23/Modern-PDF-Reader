@@ -23,6 +23,7 @@
 #include <QScrollArea>
 #include <QScroller>
 #include <QTimer>
+#include <windows.h>
 
 // أنماط ألوان القراءة
 enum ReadingTheme { ThemeLight, ThemeDark, ThemeSepia, ThemeNord };
@@ -1183,12 +1184,12 @@ protected:
         }
     }
 
-    bool nativeEvent(const QByteArray &eventType, void *message, long *result) override {
+    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override {
         MSG *msg = static_cast<MSG*>(message);
         if (msg->message == WM_SYSCOMMAND) {
             // التحقق مما إذا كان المستخدم يضغط على أيقونة شريط المهام لتصغير النافذة
             if ((msg->wParam & 0xFFF0) == SC_MINIMIZE) {
-                // هنا نقوم بتشغيل أنيميشن التلاشي والتصغير الذي أعجبك
+                // تشغيل أنيميشن التلاشي والتصغير بسلاسة
                 QPropertyAnimation *minAnim = new QPropertyAnimation(this, "windowOpacity", this);
                 minAnim->setDuration(150);
                 minAnim->setStartValue(1.0);
@@ -1201,13 +1202,14 @@ protected:
                 });
                 
                 minAnim->start(QAbstractAnimation::DeleteWhenStopped);
-                *result = 0;
-                return true; // تم التقاط الحدث ومعالجته بنجاح
+                if (result) {
+                    *result = 0;
+                }
+                return true; // تم معالجة الحدث بنجاح
             }
         }
         return QWidget::nativeEvent(eventType, message, result);
     }
-
 private:
     QWidget                   *centralWidget;
     QWidget                   *header;

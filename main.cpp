@@ -23,8 +23,10 @@
 #include <QScrollArea>
 #include <QScroller>
 #include <QTimer>
+#if defined(Q_OS_WIN)
 #include <windows.h>
-
+#include <windowsx.h>
+#endif
 // أنماط ألوان القراءة
 enum ReadingTheme { ThemeLight, ThemeDark, ThemeSepia, ThemeNord };
 

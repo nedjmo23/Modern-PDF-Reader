@@ -552,6 +552,12 @@ public:
         resize(1100, 800);
         setMinimumSize(800, 600);
 
+        // تفعيل استجابة شريط المهام للتصغير في ويندوز
+        HWND hwnd = reinterpret_cast<HWND>(this->winId());
+        DWORD style = GetWindowLong(hwnd, GWL_STYLE);
+        SetWindowLong(hwnd, GWL_STYLE, style | WS_MINIMIZEBOX);
+        SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+        
         // استعادة الثيم المحفوظ مسبقاً عند الفتح
         QSettings settings("ModernPDFReader", "Settings");
         int savedTheme = settings.value("currentTheme", ThemeDark).toInt();

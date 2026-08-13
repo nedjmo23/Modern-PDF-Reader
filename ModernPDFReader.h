@@ -17,6 +17,7 @@ public:
         setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
         resize(1100, 800);
         setMinimumSize(800, 600);
+        restoreWindowState();
 
         // تفعيل استجابة شريط المهام للتصغير في ويندوز
         HWND hwnd = reinterpret_cast<HWND>(this->winId());
@@ -623,6 +624,25 @@ protected:
         QWidget::changeEvent(event);
     }
 
+    void saveWindowState() {
+    QSettings settings("ModernPDFReader", "WindowState");
+    settings.setValue("geometry", isMaximized() ? m_normalGeometry : geometry());
+    settings.setValue("maximized", isMaximized());
+}
+
+void restoreWindowState() {
+    QSettings settings("ModernPDFReader", "WindowState");
+    QRect savedGeometry = settings.value("geometry", QRect(100, 100, 1100, 800)).toRect();
+    bool savedMaximized = settings.value("maximized", false).toBool();
+
+    setGeometry(savedGeometry);
+    m_normalGeometry = savedGeometry;
+
+    if (savedMaximized) {
+        showMaximized();
+    }
+}
+
     void toggleMaximizedAnimated() {
         QRect targetGeometry;
         QRect startGeometry = this->geometry();
@@ -732,6 +752,7 @@ private:
     IslandToggleButton        *islandToggleBtn;
     QRect                      m_normalGeometry;
 
+    bool                       m_wasMaximized = false;
     bool                       m_islandVisible;
     ReadingTheme               m_currentTheme;
 

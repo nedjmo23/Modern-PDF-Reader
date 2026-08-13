@@ -630,7 +630,7 @@ protected:
         if (isMaximized()) {
             // إذا كانت مكبرة، سنحدد الحجم العادي (مثلاً 1100x800) ونظهرها بشكل طبيعي أولاً
             showNormal();
-            targetGeometry = QRect(x(), y(), 1100, 800); // يمكنك تعديل الحجم العادي حسب رغبتك
+            targetGeometry = m_normalGeometry;
             
             // أنيميشن الانكماش بسلاسة للحجم العادي
             QPropertyAnimation *restoreAnim = new QPropertyAnimation(this, "geometry", this);
@@ -641,6 +641,7 @@ protected:
             restoreAnim->start(QAbstractAnimation::DeleteWhenStopped);
         } else {
             // إذا كانت عادية، سنكبرها لملء الشاشة المتاحة بانيميشن سلس
+            m_normalGeometry = startGeometry;
             targetGeometry = screen()->availableGeometry();
             
             QPropertyAnimation *sizeAnim = new QPropertyAnimation(this, "geometry", this);
@@ -729,7 +730,8 @@ private:
     QPushButton               *btnClose;
     DynamicIsland             *dynamicIsland;
     IslandToggleButton        *islandToggleBtn;
-    
+    QRect                      m_normalGeometry;
+
     bool                       m_islandVisible;
     ReadingTheme               m_currentTheme;
 
